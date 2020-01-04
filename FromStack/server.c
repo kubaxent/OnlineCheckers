@@ -8,20 +8,50 @@
 #include "pthread.h"
 
 #define MESSAGE_BUFFER 500
+#define USERNAME_BUFFER 10
 #define CLIENT_ADDRESS_LENGTH 100
+#define GAMES_MAX_NUMBER 32
 
-bool shutDown = false;
+//Game session struct
+typedef struct game_session_data{
+    int cl_socket_fd;
+    struct sockaddr cl_addr;
+} game_session_data;
 
-// Start server
-void * start_server(int socket_fd, struct sockaddr_in *address) {
-    bind(socket_fd, (struct sockaddr *) address, sizeof *address);
-    printf("Waiting for connection...\n");
-    listen(socket_fd, 10);
+//Global variables
+bool shutDown = false; //If this is true we shut down the server
+
+//Send/Receive Mutexes
+pthread_mutex_t send_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t recv_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+//Game session thread
+void * game_session(void *game_data){
+    pthread_detach(pthread_self());
+
+    char opponent[USERNAME_BUFFER];
+    memset(opponent, 0, USERNAME_BUFFER); // Clear opponent name buffer
+    socket_fd = (int) socket;
+
+    pthread_mutex_lock(&recv_mutex);
+        recvfrom(socket_fd, opponent, MESSAGE_BUFFER, 0, NULL, NULL); //Get the opponent's name
+    pthread_mutex_unlock(&recv_mutex);
+    
+    game_session_data *g_data = (game_session_data*)game_data;
+
+    int cl_socket_fd = (*g_data).cl_socket_fd;
+    struct sockaddr cl_addr = (*g_data).cl_addr;
+    
+
+    while(!shutDown){
+        pthread_mutex_lock(&recv_mutex);
+
+        pthread_mutex_unlock(&recv_mutex);
+    }
+
+    pthread_exit(NULL); 
 }
 
-//void * handle_connection(int connection_socket_descriptor){
-//
-//}
 
 // Get message from stdin and send to client
 void * send_message(int new_socket_fd, struct sockaddr *cl_addr) {
@@ -57,7 +87,7 @@ int main(int argc, char**argv) {
     struct sockaddr_in address, cl_addr;
     int socket_fd, length, response, new_socket_fd;
     char client_address[CLIENT_ADDRESS_LENGTH];
-    pthread_t thread[32];
+    pthread_t thread[GAMES_MAX_NUMBER];
 
     if (argc < 2) {
         printf("Usage: server port_number\n");
@@ -70,7 +100,10 @@ int main(int argc, char**argv) {
     address.sin_port = htons(port);
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 
-    start_server(socket_fd, &address);
+    //Start the server
+    bind(socket_fd, (struct sockaddr *) address, sizeof *address);
+    printf("Waiting for first connection...\n");
+    listen(socket_fd, 10);
 
     int i = 0;
 
@@ -82,26 +115,34 @@ int main(int argc, char**argv) {
 
         if (new_socket_fd < 0) {
             printf("Failed to connect\n");
-            //exit(1);
+            continue;
         }
 
         inet_ntop(AF_INET, &(cl_addr.sin_addr), client_address, CLIENT_ADDRESS_LENGTH);
         printf("Connected: %s\n", client_address);
 
-        //handle_connection(new_socket_fd);
+        // Create new game thread
+        game_session_data *g_data = malloc(sizeof(game_session_data));
+        
+        g_data->cl_socket_fd = new_socket_fd;
+        g_data->cl_addr = cl_addr;
 
-        // Create new thread to receive messages
-        pthread_create(&thread[i], NULL, receive, (void *) new_socket_fd);
+        int create_result = pthread_create(&thread[i], NULL, game_session, (void *)g_data);
+
+        if (create_result){
+            printf("Error while trying to create game session %d\n", create_result);
+            continue;
+        }
+
         i++;
 
-        printf("%d\n",i);
-
+        //pthread_create(&thread[i], NULL, receive, (void *) new_socket_fd);
         // Send message
-        //send_message(new_socket_fd, &cl_addr); //for now just testing receiving
+        //send_message(new_socket_fd, &cl_addr); //For now just testing receiving
     }
 
-    // Close sockets and kill thread
-    close(new_socket_fd);
+    // Close sockets and kill threads
+    close(new_socket_fd); //TODO: Close all new_socket_fd's
     close(socket_fd);
     pthread_exit(NULL);
     return 0;

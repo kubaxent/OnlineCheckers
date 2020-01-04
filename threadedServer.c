@@ -1,4 +1,4 @@
-// kompilacja: gcc <nazwa tego pliku> -Wall -o <nazwa pliku wynikowego>
+// kompilacja: gcc -pthread <nazwa tego pliku> -Wall -o <nazwa pliku wynikowego>
 // nadanie uprawnień do uruchomienia pliku wynikowego: chmod +x <nazwa pliku wynikowego>
 // uruchomienie: ./<nazwa pliku wynikowego>
 #include <sys/types.h>

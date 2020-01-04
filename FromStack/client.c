@@ -16,20 +16,24 @@
 #define MESSAGE_BUFFER 500
 #define USERNAME_BUFFER 10
 
+//If this is true we shut down the client (i know i know, global variables, eww)
+bool shutDown = false;
+
 typedef struct {
     char* prompt;
     int socket;
 } thread_data;
 
-// Connect to server
-void * connect_to_server(int socket_fd, struct sockaddr_in *address) {
-    int response = connect(socket_fd, (struct sockaddr *) address, sizeof *address);
-    if (response < 0) {
-        fprintf(stderr, "connect() failed: %s\n", strerror(errno));
-        exit(1);
-    } else {
-      printf("Connected\n");
+void game_session(){
+
+  if(){
+    while(){
+
     }
+  }else{
+
+  }
+
 }
 
 // Get message from stdin and send to server
@@ -37,6 +41,10 @@ void * send_message(char prompt[USERNAME_BUFFER+4], int socket_fd, struct sockad
   printf("%s", prompt);
   char message[MESSAGE_BUFFER];
   char final_message[MESSAGE_BUFFER+USERNAME_BUFFER+1];
+
+  //Send the desired opponent's name
+  send(socket_fd, , strlen(final_message)+1, 0);
+
   while (fgets(message, MESSAGE_BUFFER, stdin) != NULL) {
       memset(final_message,0,strlen(final_message)); // Clear final message buffer
       strcat(final_message, prompt);
@@ -65,13 +73,13 @@ void * receive(void * threadData) {
           fprintf(stderr, "recv() failed: %s\n", strerror(errno));
           break;
         } else if (response == 0) {
-              printf("\nPeer disconnected\n");
-              break;
+            printf("\nPeer disconnected\n");
+            break;
         } else {
-              printf("\nServer> %s", message);
-              printf("%s", prompt);
-              fflush(stdout); // Make sure "User>" gets printed
-          }
+            printf("\nServer> %s", message);
+            printf("%s", prompt);
+            fflush(stdout); // Make sure "User>" gets printed
+        }
     }
 }
 
@@ -82,12 +90,13 @@ int main(int argc, char**argv) {
     int socket_fd, response;
     char prompt[USERNAME_BUFFER+4];
     char username[USERNAME_BUFFER];
+    char opponent[USERNAME_BUFFER];
     pthread_t thread;
 
     // Check for required arguments
     if (argc < 3) {
-        printf("Usage: client ip_address port_number\n");
-        exit(1);
+      printf("Usage: client ip_address port_number\n");
+      exit(1);
     }
 
     // Get user handle
@@ -104,18 +113,35 @@ int main(int argc, char**argv) {
     address.sin_port = htons(port);
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 
-    connect_to_server(socket_fd, &address);
+    //Connect to server
+    int response = connect(socket_fd, (struct sockaddr *) address, sizeof *address);
+    if(response < 0){
+      fprintf(stderr, "connect() failed: %s\n", strerror(errno));
+      exit(1);
+    }else{
+      printf("Connected\n");
+    }
+
+    while(!shutDown){
+      //Get opponent handle
+      printf("Enter your desired opponent's user name: ");
+      fgets(opponent, USERNAME_BUFFER, stdin);
+      opponent[strlen(opponent) - 1] = 0; // Remove newline char from end of string
+
+      game_session();
+
+    }
 
     // Create data struct for new thread
-    thread_data data;
-    data.prompt = prompt;
-    data.socket = socket_fd;
+    //thread_data data;
+    //data.prompt = prompt;
+    //data.socket = socket_fd;
 
     // Create new thread to receive messages
-    pthread_create(&thread, NULL, receive, (void *) &data);
+    //pthread_create(&thread, NULL, receive, (void *) &data);
 
     // Send message
-    send_message(prompt, socket_fd, &address);
+    //send_message(prompt, socket_fd, &address);
 
     // Close socket and kill thread
     close(socket_fd);
