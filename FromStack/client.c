@@ -24,7 +24,7 @@ typedef struct {
     int socket;
 } thread_data;
 
-void game_session(){
+void player_session(){
 
   if(){
     while(){
@@ -37,7 +37,7 @@ void game_session(){
 }
 
 // Get message from stdin and send to server
-void * send_message(char prompt[USERNAME_BUFFER+4], int socket_fd, struct sockaddr_in *address) {
+/*void * send_message(char prompt[USERNAME_BUFFER+4], int socket_fd, struct sockaddr_in *address) {
   printf("%s", prompt);
   char message[MESSAGE_BUFFER];
   char final_message[MESSAGE_BUFFER+USERNAME_BUFFER+1];
@@ -81,7 +81,7 @@ void * receive(void * threadData) {
             fflush(stdout); // Make sure "User>" gets printed
         }
     }
-}
+}*/
 
 int main(int argc, char**argv) {
     long port = strtol(argv[2], NULL, 10);
@@ -128,7 +128,7 @@ int main(int argc, char**argv) {
       fgets(opponent, USERNAME_BUFFER, stdin);
       opponent[strlen(opponent) - 1] = 0; // Remove newline char from end of string
 
-      game_session();
+      player_session();
 
     }
 
