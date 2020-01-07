@@ -3,6 +3,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "stdbool.h"
 #include <unistd.h>
 #include <netdb.h>
 #include <signal.h>
@@ -19,19 +20,17 @@
 //If this is true we shut down the client (i know i know, global variables, eww)
 bool shutDown = false;
 
-typedef struct {
-    char* prompt;
-    int socket;
-} thread_data;
 
-void player_session(){
+void player_session(int connection_socket_descriptor){
 
-  if(){
-    while(){
+  char message[MESSAGE_BUFFER];
 
+  while (fgets(message, MESSAGE_BUFFER, stdin) != NULL) {
+    send(connection_socket_descriptor, message, MESSAGE_BUFFER, 0);
+    if (strncmp(message, "/quit", 5) == 0) {
+        printf("Closing client.\n");
+        break;
     }
-  }else{
-
   }
 
 }
@@ -84,14 +83,11 @@ void * receive(void * threadData) {
 }*/
 
 int main(int argc, char**argv) {
-    long port = strtol(argv[2], NULL, 10);
-    struct sockaddr_in address, cl_addr;
-    char * server_address;
-    int socket_fd, response;
-    char prompt[USERNAME_BUFFER+4];
+    
+    int connection_socket_descriptor;
+    struct sockaddr_in server_address;
+    struct hostent* server_host_entity;
     char username[USERNAME_BUFFER];
-    char opponent[USERNAME_BUFFER];
-    pthread_t thread;
 
     // Check for required arguments
     if (argc < 3) {
@@ -99,22 +95,16 @@ int main(int argc, char**argv) {
       exit(1);
     }
 
-    // Get user handle
-    printf("Enter your user name: ");
-    fgets(username, USERNAME_BUFFER, stdin);
-    username[strlen(username) - 1] = 0; // Remove newline char from end of string
-    strcpy(prompt, username);
-    strcat(prompt, "> ");
+    server_host_entity = gethostbyname(argv[1]);
+    connection_socket_descriptor = socket(PF_INET, SOCK_STREAM, 0);
 
     memset(&server_address, 0, sizeof(struct sockaddr));
-    server_address = argv[1];
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = inet_addr(server_address);
-    address.sin_port = htons(port);
-    socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    server_address.sin_family = AF_INET;
+    memcpy(&server_address.sin_addr.s_addr, server_host_entity->h_addr, server_host_entity->h_length);
+    server_address.sin_port = htons(atoi(argv[2]));
 
     //Connect to server
-    int response = connect(socket_fd, (struct sockaddr *) address, sizeof *address);
+    int response = connect(connection_socket_descriptor, (struct sockaddr*)&server_address, sizeof(struct sockaddr));
     if(response < 0){
       fprintf(stderr, "connect() failed: %s\n", strerror(errno));
       exit(1);
@@ -122,7 +112,18 @@ int main(int argc, char**argv) {
       printf("Connected\n");
     }
 
-    while(!shutDown){
+    // Get username
+    printf("Enter your user name: ");
+    fgets(username, USERNAME_BUFFER, stdin);
+    username[strlen(username) - 1] = 0; // Remove newline char from end of string
+
+    //Send the username 
+    send(connection_socket_descriptor, username, USERNAME_BUFFER, 0);
+    
+    //Start the client player session
+    player_session(connection_socket_descriptor);
+
+    /*while(!shutDown){
       //Get opponent handle
       printf("Enter your desired opponent's user name: ");
       fgets(opponent, USERNAME_BUFFER, stdin);
@@ -130,21 +131,9 @@ int main(int argc, char**argv) {
 
       player_session();
 
-    }
+    }*/
 
-    // Create data struct for new thread
-    //thread_data data;
-    //data.prompt = prompt;
-    //data.socket = socket_fd;
-
-    // Create new thread to receive messages
-    //pthread_create(&thread, NULL, receive, (void *) &data);
-
-    // Send message
-    //send_message(prompt, socket_fd, &address);
-
-    // Close socket and kill thread
-    close(socket_fd);
+    close(connection_socket_descriptor);
     pthread_exit(NULL);
     return 0;
 
