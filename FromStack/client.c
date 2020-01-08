@@ -17,22 +17,56 @@
 #define MESSAGE_BUFFER 500
 #define USERNAME_BUFFER 10
 
-//If this is true we shut down the client (i know i know, global variables, eww)
-bool shutDown = false;
+typedef struct thread_data{
+  int socket_fd;
+}thread_data;
 
-
-void player_session(int connection_socket_descriptor){
+void sending(void * data){
+  pthread_detach(pthread_self());
 
   char message[MESSAGE_BUFFER];
+  thread_data *t_data = (thread_data*)data;
+
+  printf("Sending started.\n");
+  int response;
 
   while (fgets(message, MESSAGE_BUFFER, stdin) != NULL) {
-    send(connection_socket_descriptor, message, MESSAGE_BUFFER, 0);
+    message[strlen(message) - 1] = 0; // Remove newline char from end of string
+    response = send(t_data->socket_fd, message, MESSAGE_BUFFER, 0);
+    if(response == -1){
+      printf("Sending error.\n");
+      break;
+    }
     if (strncmp(message, "/quit", 5) == 0) {
-        printf("Closing client.\n");
-        break;
+      printf("Closing client.\n");
+      break;
     }
   }
 
+  free(data);
+  pthread_exit(NULL); 
+}
+
+void * receiving(void * data){
+  pthread_detach(pthread_self());  
+  
+  char message[MESSAGE_BUFFER];
+  thread_data *t_data = (thread_data*)data;
+
+  printf("Receiving started.\n");
+  int response;
+
+  while(true){
+    response = recvfrom(t_data->socket_fd, message, MESSAGE_BUFFER, 0, NULL, NULL);
+    if(response <= 0){
+      printf("Disconnected from server.\n");
+      break;
+    }
+    printf("%s\n", message);
+  }
+
+  free(data);
+  pthread_exit(NULL); 
 }
 
 // Get message from stdin and send to server
@@ -84,57 +118,56 @@ void * receive(void * threadData) {
 
 int main(int argc, char**argv) {
     
-    int connection_socket_descriptor;
-    struct sockaddr_in server_address;
-    struct hostent* server_host_entity;
-    char username[USERNAME_BUFFER];
+  int connection_socket_descriptor;
+  struct sockaddr_in server_address;
+  struct hostent* server_host_entity;
+  char username[USERNAME_BUFFER];
 
-    // Check for required arguments
-    if (argc < 3) {
-      printf("Usage: client ip_address port_number\n");
-      exit(1);
-    }
+  // Check for required arguments
+  if (argc < 3) {
+    printf("Usage: client ip_address port_number\n");
+    exit(1);
+  }
 
-    server_host_entity = gethostbyname(argv[1]);
-    connection_socket_descriptor = socket(PF_INET, SOCK_STREAM, 0);
+  server_host_entity = gethostbyname(argv[1]);
+  connection_socket_descriptor = socket(PF_INET, SOCK_STREAM, 0);
 
-    memset(&server_address, 0, sizeof(struct sockaddr));
-    server_address.sin_family = AF_INET;
-    memcpy(&server_address.sin_addr.s_addr, server_host_entity->h_addr, server_host_entity->h_length);
-    server_address.sin_port = htons(atoi(argv[2]));
+  memset(&server_address, 0, sizeof(struct sockaddr));
+  server_address.sin_family = AF_INET;
+  memcpy(&server_address.sin_addr.s_addr, server_host_entity->h_addr, server_host_entity->h_length);
+  server_address.sin_port = htons(atoi(argv[2]));
 
-    //Connect to server
-    int response = connect(connection_socket_descriptor, (struct sockaddr*)&server_address, sizeof(struct sockaddr));
-    if(response < 0){
-      fprintf(stderr, "connect() failed: %s\n", strerror(errno));
-      exit(1);
-    }else{
-      printf("Connected\n");
-    }
+  //Connect to server
+  int response = connect(connection_socket_descriptor, (struct sockaddr*)&server_address, sizeof(struct sockaddr));
+  if(response < 0){
+    fprintf(stderr, "connect() failed: %s\n", strerror(errno));
+    exit(1);
+  }else{
+    printf("Connected\n");
+  }
 
-    // Get username
-    printf("Enter your user name: ");
-    fgets(username, USERNAME_BUFFER, stdin);
-    username[strlen(username) - 1] = 0; // Remove newline char from end of string
+  // Get username
+  printf("Enter your user name: ");
+  fgets(username, USERNAME_BUFFER, stdin);
+  username[strlen(username) - 1] = 0; // Remove newline char from end of string
 
-    //Send the username 
-    send(connection_socket_descriptor, username, USERNAME_BUFFER, 0);
-    
-    //Start the client player session
-    player_session(connection_socket_descriptor);
+  //Send the username 
+  send(connection_socket_descriptor, username, USERNAME_BUFFER, 0);
+  
+  //Start the client player session
+  thread_data *t_data = malloc(sizeof(t_data));
+  t_data->socket_fd = connection_socket_descriptor;
 
-    /*while(!shutDown){
-      //Get opponent handle
-      printf("Enter your desired opponent's user name: ");
-      fgets(opponent, USERNAME_BUFFER, stdin);
-      opponent[strlen(opponent) - 1] = 0; // Remove newline char from end of string
+  pthread_t rec_thread;
+  pthread_create(&rec_thread, NULL, receiving, (void *)t_data);
 
-      player_session();
+  sending((void *)t_data);
 
-    }*/
-
-    close(connection_socket_descriptor);
-    pthread_exit(NULL);
-    return 0;
+  //Closing the client
+  printf("Closing client.\n");
+  
+  close(connection_socket_descriptor);
+  pthread_exit(NULL);
+  return 0;
 
 }
