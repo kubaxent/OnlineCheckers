@@ -49,11 +49,64 @@ char* after_space(char* input) {
 player_data* find_player(char *username){
     for(int i = 0; i < PLAYERS_MAX_NUMBER; i++){
         if(players[i]!=NULL){
-            printf("%s%s\n",players[i]->username,username);
             if(strcmp(players[i]->username, username)==0)return players[i];
         }
     }
     return NULL;
+}
+
+//Game session thread
+void * game_session(void *ga_data){
+    pthread_detach(pthread_self());
+
+    game_session_data *g_data = (game_session_data*)ga_data;
+
+    player_data *p1 = g_data->player1;
+    player_data *p2 = g_data->player2;
+
+    char input[MESSAGE_BUFFER];
+    char message[MESSAGE_BUFFER];
+
+    strcpy(message, "You are now in a match against ");
+    strcat(message, p2->username);
+    send(p1->socket_fd, message, MESSAGE_BUFFER, 0);
+
+    strcpy(message, "You are now in a match against ");
+    strcat(message, p1->username);
+    send(p2->socket_fd, message, MESSAGE_BUFFER, 0);
+
+    
+    int response;
+    bool turn = rand() & 1; //So that a random player starts.
+    player_data *current_player;
+    player_data *current_opponent;
+    while(true){
+        
+        current_player = (turn)?p1:p2;
+        current_opponent = (turn)?p2:p1; 
+
+        response = recvfrom(current_player->socket_fd, input, MESSAGE_BUFFER, 0, NULL, NULL);
+        
+        //Error/disconnection handling
+        if (response <= 0) {
+            printf("Game session end due to recv() error.\n");
+            break;
+        }
+
+        //Comands handling
+        if (strncmp(input, "/end", 4) == 0) {
+            printf("Ending game.\n");
+            break;
+        }
+
+        turn=!turn;
+
+    }
+
+    g_data->player1->in_match = false;
+    g_data->player2->in_match = false;
+    free(g_data);
+    pthread_exit(NULL); 
 } 
 
 void * player_session(void *pl_data){
@@ -70,37 +123,90 @@ void * player_session(void *pl_data){
     printf("Got the username for %s\n", p_data->username);
 
     char input[MESSAGE_BUFFER];
+    char message[MESSAGE_BUFFER];
     char *opponent_name;
     int response;
     while(true){
 
+        while(p_data->in_match); //We now handle the input from the game thread. 
+
         response = recvfrom(p_data->socket_fd, input, MESSAGE_BUFFER, 0, NULL, NULL);
         
         //Error/disconnection handling
-        if (response == -1) {
-            printf("recv() failed\n");
-            break;
-        }else if (response == 0) {
-            printf("%s disconnected\n",p_data->username);
+        if (response <= 0) {
+            printf("%s disconnected or recv() failed.\n",p_data->username);
             break;
         }
+
+        //Comands handling
         if (strncmp(input, "/quit", 5) == 0) {
             printf("Closing connection with %s\n",p_data->username);
             break;
         }
-        if (strncmp(input, "/playagainst ", 5) == 0) {
+        if (strncmp(input, "/playagainst ",13) == 0) {
             opponent_name = after_space(input);
             
             printf("Selected opponent: %s\n", opponent_name);
             player_data *opponent = find_player(opponent_name);
             
             if(opponent!=NULL){
-                printf("Opponent socket_fd: %d\n", opponent->socket_fd);
-                send(p_data->socket_fd, opponent->username, USERNAME_BUFFER, 0);
+                printf("Opponent found.\n");
+
+                if(!opponent->in_match){
+
+                    strcpy(message, "Player ");
+                    strcat(message, p_data->username);
+                    strcat(message, " wants to play. Type /accept to accept or anything else to reject.");
+
+                    send(opponent->socket_fd, message, MESSAGE_BUFFER, 0);
+                    
+                    response = recvfrom(opponent->socket_fd, input, MESSAGE_BUFFER, 0, NULL, NULL);
+                    if (response <= 0) {
+                        printf("%s disconnected or recv() failed.\n",opponent->username);
+                        strcpy(message, "Your opponent timed out.");
+                        send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                        continue;
+                    }
+
+                    if (strncmp(input, "/accept",7) == 0) {
+                        game_session_data *g_data = malloc(sizeof(game_session_data));
+                        g_data->player1 = p_data;
+                        g_data->player2 = opponent;
+
+                        pthread_t game;
+                        int create_result = pthread_create(&game, NULL, game_session, (void *)g_data);
+                        
+                        if (create_result){
+                            printf("Error while trying to create game session %d\n", create_result);
+                            
+                            free(g_data);
+                            g_data = NULL;
+                            
+                            strcpy(message, "Sorry, couldn't start game.");
+                            send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                            send(opponent->socket_fd, message, MESSAGE_BUFFER, 0);
+                        }else{
+
+                            printf("Game started successfully.\n");
+                            p_data->in_match = true;
+                            opponent->in_match = true;
+
+                        }
+
+                    }else{
+                        strcpy(message, "Opponent didn't accept the invitation.");
+                        send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                    }
+
+                }else{
+                    strcpy(message, "Sorry, your opponent is currently in a match.");
+                    send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                }
+
             }else{
-                printf("Could not find opponent.\n");
+                strcpy(message, "Could not find opponent.");
+                send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
             }
-            //TODO: send play request to opponent
 
         }
         printf("%s: %s\n",p_data->username, input);
@@ -109,29 +215,8 @@ void * player_session(void *pl_data){
     printf("Shutting player %s session down.\n",p_data->username);
     
     connectedPlayers--;
-    close(p_data->socket_fd);
     free(p_data);
     players[index]=NULL; //Apparently good practice
-    pthread_exit(NULL); 
-}
-
-//Game session thread
-void * game_session(void *ga_data){
-    pthread_detach(pthread_self());
-
-    game_session_data *g_data = (game_session_data*)ga_data;
-    printf("%d\n",g_data->player1->id);
-
-    //recvfrom(cl1_socket_fd, opponent, MESSAGE_BUFFER, 0, NULL, NULL); //Get the opponent's name
-    
-    //int response;
-
-    while(true){
-        //response =
-        
-    }
-
-    //free(game_data);
     pthread_exit(NULL); 
 }
 
@@ -143,36 +228,6 @@ int player_array_empty_index(){
     }
     return -1;
 }
-
-
-// Get message from stdin and send to client
-/*void * send_message(int new_socket_fd, struct sockaddr *cl_addr) {
-    char message[MESSAGE_BUFFER];
-    while (fgets(message, MESSAGE_BUFFER, stdin) != NULL) {
-        if (strncmp(message, "/quit", 5) == 0) {
-            printf("Closing connection...\n");
-            shutDown = true;
-            exit(0);
-        }
-        sendto(new_socket_fd, message, MESSAGE_BUFFER, 0, (struct sockaddr *) &cl_addr, sizeof cl_addr);
-    }
-}
-
-void * receive(void * socket) {
-    int socket_fd, response;
-    char message[MESSAGE_BUFFER];
-    memset(message, 0, MESSAGE_BUFFER); // Clear message buffer
-    socket_fd = (int) socket;
-
-    // Print received message
-    while(true) {
-        response = recvfrom(socket_fd, message, MESSAGE_BUFFER, 0, NULL, NULL);
-        if (response) {
-            //printf("Socket: %n\n", socket_fd)
-            printf("%s %d", message, socket_fd);
-        }
-    }
-}*/
 
 int main(int argc, char**argv) {
     long port = strtol(argv[1], NULL, 10);
@@ -192,6 +247,12 @@ int main(int argc, char**argv) {
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 
     setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse_addr_val, sizeof(reuse_addr_val));
+
+    //Seting a timeout
+    /*struct timeval tv;
+    tv.tv_sec = 15;
+    tv.tv_usec = 0;
+    setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);*/
 
     //Start the server
     bind(socket_fd, (struct sockaddr *) &address, sizeof address);
@@ -224,7 +285,7 @@ int main(int argc, char**argv) {
             int create_result = pthread_create(&thread, NULL, player_session, (void *)players[index]);
 
             if (create_result){
-                printf("Error while trying to create game session %d\n", create_result);
+                printf("Error while trying to create player session %d\n", create_result);
                 free(players[index]);
                 players[index]=NULL; //Apparently good practice
                 continue;
@@ -236,10 +297,9 @@ int main(int argc, char**argv) {
 
     }
 
-    // Close socket and kill thread
+    // Close socket, kill thread and free memory
     close(socket_fd);
     for(int i = 0; i < PLAYERS_MAX_NUMBER; i++){
-        close(players[i]->socket_fd);
         free(players[i]);
         players[i]=NULL; //Apparently good practice
     }

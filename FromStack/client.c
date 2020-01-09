@@ -137,6 +137,12 @@ int main(int argc, char**argv) {
   memcpy(&server_address.sin_addr.s_addr, server_host_entity->h_addr, server_host_entity->h_length);
   server_address.sin_port = htons(atoi(argv[2]));
 
+  //Seting a timeout
+  /*struct timeval tv;
+  tv.tv_sec = 15;
+  tv.tv_usec = 0;
+  setsockopt(connection_socket_descriptor, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);*/
+
   //Connect to server
   int response = connect(connection_socket_descriptor, (struct sockaddr*)&server_address, sizeof(struct sockaddr));
   if(response < 0){
