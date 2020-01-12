@@ -64,7 +64,8 @@ void * game_session(void *ga_data){
     player_data *p1 = g_data->player1;
     player_data *p2 = g_data->player2;
 
-    char input[MESSAGE_BUFFER];
+    char input1[MESSAGE_BUFFER];
+    char input2[MESSAGE_BUFFER];
     char message[MESSAGE_BUFFER];
 
     strcpy(message, "You are now in a match against ");
@@ -85,16 +86,24 @@ void * game_session(void *ga_data){
         current_player = (turn)?p1:p2;
         current_opponent = (turn)?p2:p1; 
 
-        response = recvfrom(current_player->socket_fd, input, MESSAGE_BUFFER, 0, NULL, NULL);
-        
-        //Error/disconnection handling
+        response = recv(current_player->socket_fd, input1, MESSAGE_BUFFER, 0);
         if (response <= 0) {
             printf("Game session end due to recv() error.\n");
             break;
         }
 
-        //Comands handling
-        if (strncmp(input, "/end", 4) == 0) {
+        response = recv(current_opponent->socket_fd, input2, MESSAGE_BUFFER, 0);
+        if (response <= 0) {
+            printf("Game session end due to recv() error.\n");
+            break;
+        }
+
+        //Commands handling
+        if (strncmp(input1, "/end", 4) == 0) {
+            printf("Ending game.\n");
+            break;
+        }
+        if (strncmp(input2, "/end", 4) == 0) {
             printf("Ending game.\n");
             break;
         }
@@ -115,22 +124,39 @@ void * player_session(void *pl_data){
     player_data *p_data = (player_data*)pl_data;
     int index = p_data->id;
 
-    printf("New player session started\n");
-    
-    //Get the username
-    recvfrom(p_data->socket_fd, p_data->username, USERNAME_BUFFER, 0, NULL, NULL);
-
-    printf("Got the username for %s\n", p_data->username);
-
     char input[MESSAGE_BUFFER];
     char message[MESSAGE_BUFFER];
-    char *opponent_name;
     int response;
+
+    printf("New player session started\n");
+
+    bool correct_username = false;
+    do{
+        //Get the username
+        response = recv(p_data->socket_fd, input, MESSAGE_BUFFER, 0);
+        if (response <= 0) {
+            printf("Unnamed player disconnected or recv() failed.\n");
+            pthread_exit(NULL);
+        }
+
+        correct_username = (find_player(input)==NULL);
+        if(!correct_username){
+            strcpy(message,"Sorry, that username is taken: try a different one");
+            send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+        }
+    
+    }while(!correct_username);
+
+    strcpy(p_data->username,input);
+    printf("Got the username for %s\n", p_data->username);
+
+    
+    char *opponent_name;
     while(true){
 
         while(p_data->in_match); //We now handle the input from the game thread. 
 
-        response = recvfrom(p_data->socket_fd, input, MESSAGE_BUFFER, 0, NULL, NULL);
+        response = recv(p_data->socket_fd, input, MESSAGE_BUFFER, 0);
         
         //Error/disconnection handling
         if (response <= 0) {
@@ -160,7 +186,7 @@ void * player_session(void *pl_data){
 
                     send(opponent->socket_fd, message, MESSAGE_BUFFER, 0);
                     
-                    response = recvfrom(opponent->socket_fd, input, MESSAGE_BUFFER, 0, NULL, NULL);
+                    response = recv(opponent->socket_fd, input, MESSAGE_BUFFER, 0);
                     if (response <= 0) {
                         printf("%s disconnected or recv() failed.\n",opponent->username);
                         strcpy(message, "Your opponent timed out.");

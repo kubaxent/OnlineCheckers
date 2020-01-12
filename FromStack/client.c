@@ -27,7 +27,7 @@ void sending(void * data){
   char message[MESSAGE_BUFFER];
   thread_data *t_data = (thread_data*)data;
 
-  printf("Sending started.\n");
+  //printf("Sending started.\n");
   int response;
 
   while (fgets(message, MESSAGE_BUFFER, stdin) != NULL) {
@@ -53,11 +53,11 @@ void * receiving(void * data){
   char message[MESSAGE_BUFFER];
   thread_data *t_data = (thread_data*)data;
 
-  printf("Receiving started.\n");
+  //printf("Receiving started.\n");
   int response;
 
   while(true){
-    response = recvfrom(t_data->socket_fd, message, MESSAGE_BUFFER, 0, NULL, NULL);
+    response = recv(t_data->socket_fd, message, MESSAGE_BUFFER, 0);
     if(response <= 0){
       printf("Disconnected from server.\n");
       break;
