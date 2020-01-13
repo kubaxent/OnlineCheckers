@@ -16,6 +16,7 @@
 
 //Player data struct
 typedef struct player_data{
+    pthread_t *thread;
     int id;
     int socket_fd;
     bool in_match;
@@ -55,6 +56,9 @@ player_data* find_player(char *username){
     return NULL;
 }
 
+//PLayer session declaration
+void * player_session(void *pl_data);
+
 //Game session thread
 void * game_session(void *ga_data){
     pthread_detach(pthread_self());
@@ -76,7 +80,10 @@ void * game_session(void *ga_data){
     strcat(message, p1->username);
     send(p2->socket_fd, message, MESSAGE_BUFFER, 0);
 
-    
+    //Stop the players' sessions
+    pthread_cancel(*p1->thread);
+    pthread_cancel(*p2->thread);
+
     int response;
     bool turn = rand() & 1; //So that a random player starts.
     player_data *current_player;
@@ -114,6 +121,11 @@ void * game_session(void *ga_data){
 
     g_data->player1->in_match = false;
     g_data->player2->in_match = false;
+
+    //Restart player sessions
+    pthread_create(p1->thread, NULL, player_session, (void *)p1);
+    pthread_create(p2->thread, NULL, player_session, (void *)p2);
+
     free(g_data);
     pthread_exit(NULL); 
 } 
@@ -154,7 +166,7 @@ void * player_session(void *pl_data){
     char *opponent_name;
     while(true){
 
-        while(p_data->in_match); //We now handle the input from the game thread. 
+        //while(p_data->in_match); //We now handle the input from the game thread. 
 
         response = recv(p_data->socket_fd, input, MESSAGE_BUFFER, 0);
         
@@ -186,7 +198,7 @@ void * player_session(void *pl_data){
 
                     send(opponent->socket_fd, message, MESSAGE_BUFFER, 0);
                     
-                    response = recv(opponent->socket_fd, input, MESSAGE_BUFFER, 0);
+                    response = recvfrom(opponent->socket_fd, input, MESSAGE_BUFFER, 0, NULL, NULL);
                     if (response <= 0) {
                         printf("%s disconnected or recv() failed.\n",opponent->username);
                         strcpy(message, "Your opponent timed out.");
@@ -306,9 +318,9 @@ int main(int argc, char**argv) {
             
             players[index]->socket_fd = new_socket_fd;
             players[index]->id = index;
+            players[index]->thread = malloc(sizeof(pthread_t));
 
-            pthread_t thread;
-            int create_result = pthread_create(&thread, NULL, player_session, (void *)players[index]);
+            int create_result = pthread_create(players[index]->thread, NULL, player_session, (void *)players[index]);
 
             if (create_result){
                 printf("Error while trying to create player session %d\n", create_result);
