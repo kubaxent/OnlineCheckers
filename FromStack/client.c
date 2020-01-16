@@ -15,7 +15,7 @@
 #include <errno.h>
 
 #define MESSAGE_BUFFER 500
-#define USERNAME_BUFFER 10
+#define USERNAME_SIZE 10
 
 typedef struct thread_data{
   int socket_fd;
@@ -28,15 +28,27 @@ void sending(void * data){
   thread_data *t_data = (thread_data*)data;
 
   //printf("Sending started.\n");
-  int response;
+  int response, n;
 
   while (fgets(message, MESSAGE_BUFFER, stdin) != NULL) {
     message[strlen(message) - 1] = 0; // Remove newline char from end of string
-    response = send(t_data->socket_fd, message, MESSAGE_BUFFER, 0);
+    
+    /*response = send(t_data->socket_fd, message, MESSAGE_BUFFER, 0);
     if(response == -1){
       printf("Sending error.\n");
       break;
+    }*/
+
+    n = 0;
+    while(n!=MESSAGE_BUFFER){
+      response = write(t_data->socket_fd, &message[n], MESSAGE_BUFFER-n);
+      if(response==-1){
+        printf("Sending error.\n");
+        break;
+      }
+      n+=response;
     }
+
     if (strncmp(message, "/quit", 5) == 0) {
       printf("Closing client.\n");
       break;
@@ -54,14 +66,20 @@ void * receiving(void * data){
   thread_data *t_data = (thread_data*)data;
 
   //printf("Receiving started.\n");
-  int response;
+  int response,n;
 
   while(true){
-    response = recv(t_data->socket_fd, message, MESSAGE_BUFFER, 0);
-    if(response <= 0){
-      printf("Disconnected from server.\n");
-      break;
+
+    n = 0;
+    while(n!=MESSAGE_BUFFER){
+      response = read(t_data->socket_fd, &message[n], MESSAGE_BUFFER-n);
+      if(response==-1){
+        printf("Disconnected from server.\n");
+        break;
+      }
+      n+=response;
     }
+
     printf("%s\n", message);
   }
 
@@ -121,7 +139,9 @@ int main(int argc, char**argv) {
   int connection_socket_descriptor;
   struct sockaddr_in server_address;
   struct hostent* server_host_entity;
-  char username[USERNAME_BUFFER];
+  char username[USERNAME_SIZE];
+
+  int response, n;
 
   // Check for required arguments
   if (argc < 3) {
@@ -140,11 +160,13 @@ int main(int argc, char**argv) {
   //Seting a timeout
   /*struct timeval tv;
   tv.tv_sec = 15;
-  tv.tv_usec = 0;
-  setsockopt(connection_socket_descriptor, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);*/
+  tv.tv_usec = 0;*/
+
+  //char reuse_addr_val = 1;
+  //setsockopt(connection_socket_descriptor, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse_addr_val, sizeof(reuse_addr_val));
 
   //Connect to server
-  int response = connect(connection_socket_descriptor, (struct sockaddr*)&server_address, sizeof(struct sockaddr));
+  response = connect(connection_socket_descriptor, (struct sockaddr*)&server_address, sizeof(struct sockaddr));
   if(response < 0){
     fprintf(stderr, "connect() failed: %s\n", strerror(errno));
     exit(1);
@@ -154,11 +176,21 @@ int main(int argc, char**argv) {
 
   // Get username
   printf("Enter your user name: ");
-  fgets(username, USERNAME_BUFFER, stdin);
+  fgets(username, USERNAME_SIZE, stdin);
   username[strlen(username) - 1] = 0; // Remove newline char from end of string
 
   //Send the username 
-  send(connection_socket_descriptor, username, USERNAME_BUFFER, 0);
+  n = 0;
+  while(n!=MESSAGE_BUFFER){
+    response = write(connection_socket_descriptor, &username[n], MESSAGE_BUFFER-n);
+    if(response==-1){
+      printf("Disconnected from server.\n");
+      //This will be changed once we get a re-connect option
+      pthread_exit(NULL);
+      return 0;
+    }
+    n+=response;
+  }
   
   //Start the client player session
   thread_data *t_data = malloc(sizeof(t_data));

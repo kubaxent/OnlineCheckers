@@ -10,7 +10,7 @@
 #include "arpa/inet.h"   
 
 #define MESSAGE_BUFFER 500
-#define USERNAME_BUFFER 16
+#define USERNAME_SIZE 16
 #define CLIENT_ADDRESS_LENGTH 100
 #define PLAYERS_MAX_NUMBER 32
 
@@ -20,14 +20,15 @@ typedef struct player_data{
     int id;
     int socket_fd;
     bool in_match;
-    char username[USERNAME_BUFFER];
+    char username[USERNAME_SIZE];
 }player_data;
 
-//game session data
+//Game session data
 typedef struct game_session_data{
     player_data *player1;
     player_data *player2;
 }game_session_data;
+
 
 //Global variables
 int connectedPlayers = 0; //Number of connected players
@@ -68,54 +69,99 @@ void * game_session(void *ga_data){
     player_data *p1 = g_data->player1;
     player_data *p2 = g_data->player2;
 
-    char input1[MESSAGE_BUFFER];
-    char input2[MESSAGE_BUFFER];
+    char input[MESSAGE_BUFFER];
     char message[MESSAGE_BUFFER];
+
+    int response,n;
 
     strcpy(message, "You are now in a match against ");
     strcat(message, p2->username);
-    send(p1->socket_fd, message, MESSAGE_BUFFER, 0);
+    response = send(p1->socket_fd, message, MESSAGE_BUFFER, 0);
+    if(response == -1){
+        printf("The server has experienced an unexpected crash.\n"); 
+        pthread_exit(NULL);
+    }     
 
     strcpy(message, "You are now in a match against ");
     strcat(message, p1->username);
-    send(p2->socket_fd, message, MESSAGE_BUFFER, 0);
+    response = send(p2->socket_fd, message, MESSAGE_BUFFER, 0);
+    if(response == -1){
+        printf("The server has experienced an unexpected crash.\n"); 
+        pthread_exit(NULL);
+    }     
 
     //Stop the players' sessions
     pthread_cancel(*p1->thread);
     pthread_cancel(*p2->thread);
 
-    int response;
-    bool turn = rand() & 1; //So that a random player starts.
+    //Initial board arrangement, 2 - white 4 - black,
+    int board[8][8] = 
+    {
+          {0 , 4 , 0 , 4 , 0 , 4 , 0 , 4},
+          {4 , 0 , 4 , 0 , 4 , 0 , 4 , 0},
+          {0 , 4 , 0 , 4 , 0 , 4 , 0 , 4},
+          {0 , 0 , 0 , 0 , 0 , 0 , 0 , 0},
+          {0 , 0 , 0 , 0 , 0 , 0 , 0 , 0},
+          {2 , 0 , 2 , 0 , 2 , 0 , 2 , 0},
+          {0 , 2 , 0 , 2 , 0 , 2 , 0 , 2},
+          {2 , 0 , 2 , 0 , 2 , 0 , 2 , 0}
+    };
+
+    int current_color;
+    bool white = rand() & 1; //So that a random player starts.
     player_data *current_player;
     player_data *current_opponent;
     while(true){
         
-        current_player = (turn)?p1:p2;
-        current_opponent = (turn)?p2:p1; 
+        current_player = (white)?p1:p2;
+        current_opponent = (white)?p2:p1;
+        int current_color = (white)?2:4;
 
-        response = recv(current_player->socket_fd, input1, MESSAGE_BUFFER, 0);
-        if (response <= 0) {
-            printf("Game session end due to recv() error.\n");
-            break;
+        strcpy(message, "Your turn.");
+        response = send(current_player->socket_fd, message, MESSAGE_BUFFER, 0);
+        if(response == -1){
+            printf("The server has experienced an unexpected crash.\n"); 
+            pthread_exit(NULL);
+        }     
+
+        strcpy(message, "Opponent's turn.");
+        response = send(current_opponent->socket_fd, message, MESSAGE_BUFFER, 0);  
+        if(response == -1){
+            printf("The server has experienced an unexpected crash.\n"); 
+            pthread_exit(NULL);
+        }     
+
+        n = 0;
+        while(n!=MESSAGE_BUFFER){
+            response = read(current_player->socket_fd, &input[n], MESSAGE_BUFFER-n);
+            if(response==-1){
+                printf("Game session end due to recv() error.\n"); 
+                break;
+            }
+            n+=response;
         }
 
-        response = recv(current_opponent->socket_fd, input2, MESSAGE_BUFFER, 0);
-        if (response <= 0) {
-            printf("Game session end due to recv() error.\n");
-            break;
-        }
-
-        //Commands handling
-        if (strncmp(input1, "/end", 4) == 0) {
+        //Quitting handling
+        if(strncmp(input, "/end", 4) == 0) {
             printf("Ending game.\n");
             break;
         }
-        if (strncmp(input2, "/end", 4) == 0) {
-            printf("Ending game.\n");
-            break;
+
+        //Finding if the player has any available captures that he has to make
+        for(int i = 0; i < 8; i++){
+            for(int j = 0; j < 8; j++){
+                if(board[i][j]==current_color){
+
+                }
+            }
         }
 
-        turn=!turn;
+        //Move handling
+        if(strncmp(input, "/move", 5) == 0) {
+            
+        }
+
+        white=!white;
 
     }
 
@@ -138,45 +184,69 @@ void * player_session(void *pl_data){
 
     char input[MESSAGE_BUFFER];
     char message[MESSAGE_BUFFER];
-    int response;
+    int response,n;
 
-    printf("New player session started\n");
+    if(strcmp(p_data->username,"")==0){ //So that if we restart the session we don't ask for the username again
 
-    bool correct_username = false;
-    do{
-        //Get the username
-        response = recv(p_data->socket_fd, input, MESSAGE_BUFFER, 0);
-        if (response <= 0) {
-            printf("Unnamed player disconnected or recv() failed.\n");
-            pthread_exit(NULL);
-        }
+        bool correct_username = false;
+        do{
+            //Get the username
+            /*response = recv(p_data->socket_fd, input, MESSAGE_BUFFER, 0);
+            if (response <= 0) {
+                printf("Unnamed player disconnected or recv() failed.\n");
+                pthread_exit(NULL);
+            }*/
+            n = 0;
+            while(n!=MESSAGE_BUFFER){
+                response = read(p_data->socket_fd, &input[n], MESSAGE_BUFFER-n);
+                if(response==-1){
+                    printf("Unnamed player disconnected or recv() failed.\n");
+                    pthread_exit(NULL);
+                }
+                n+=response;
+                //printf("%d %d %c\n",MESSAGE_BUFFER,n,input[strlen(input)-1]);
+            }
 
-        correct_username = (find_player(input)==NULL);
-        if(!correct_username){
-            strcpy(message,"Sorry, that username is taken: try a different one");
-            send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
-        }
-    
-    }while(!correct_username);
+            correct_username = (find_player(input)==NULL);
+            if(!correct_username){
+                strcpy(message,"Sorry, that username is taken: try a different one");
+                response = send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                if(response == -1){
+                    printf("The server has experienced an unexpected crash.\n"); 
+                    pthread_exit(NULL);
+                } 
+            }
+        
+        }while(!correct_username);
 
-    strcpy(p_data->username,input);
-    printf("Got the username for %s\n", p_data->username);
+        strcpy(p_data->username,input);
+        printf("Got the username for %s\n", p_data->username);
+        printf("Player session started\n");
+
+    }else{
+        printf("Player session restarted.\n");
+    }
 
     
     char *opponent_name;
     while(true){
 
-        //while(p_data->in_match); //We now handle the input from the game thread. 
-
-        response = recv(p_data->socket_fd, input, MESSAGE_BUFFER, 0);
-        
-        //Error/disconnection handling
+        /*response = recv(p_data->socket_fd, input, MESSAGE_BUFFER, 0);
         if (response <= 0) {
             printf("%s disconnected or recv() failed.\n",p_data->username);
             break;
+        }*/
+        n = 0;
+        while(n!=MESSAGE_BUFFER){
+            response = read(p_data->socket_fd, &input[n], MESSAGE_BUFFER-n);
+            if(response==-1){
+                printf("%s disconnected or recv() failed.\n",p_data->username);
+                break;
+            }
+            n+=response;
         }
 
-        //Comands handling
+        //Commands handling
         if (strncmp(input, "/quit", 5) == 0) {
             printf("Closing connection with %s\n",p_data->username);
             break;
@@ -196,15 +266,38 @@ void * player_session(void *pl_data){
                     strcat(message, p_data->username);
                     strcat(message, " wants to play. Type /accept to accept or anything else to reject.");
 
-                    send(opponent->socket_fd, message, MESSAGE_BUFFER, 0);
+                    response = send(opponent->socket_fd, message, MESSAGE_BUFFER, 0);
+                    if(response == -1){
+                        printf("The server has experienced an unexpected crash.\n"); 
+                        pthread_exit(NULL);
+                    } 
                     
-                    response = recvfrom(opponent->socket_fd, input, MESSAGE_BUFFER, 0, NULL, NULL);
+                    n = 0;
+                    while(n!=MESSAGE_BUFFER){
+                        response = read(opponent->socket_fd, &input[n], MESSAGE_BUFFER-n);
+                        if(response==-1){
+                            printf("%s disconnected or recv() failed.\n",opponent->username);
+                            strcpy(message, "Your opponent timed out.");
+                            response = send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                            if(response == -1){
+                                printf("The server has experienced an unexpected crash.\n"); 
+                                pthread_exit(NULL);
+                            } 
+                            continue;
+                        }
+                        n+=response;
+                    }
+                    /*response = recvfrom(opponent->socket_fd, input, MESSAGE_BUFFER, 0, NULL, NULL);
                     if (response <= 0) {
                         printf("%s disconnected or recv() failed.\n",opponent->username);
                         strcpy(message, "Your opponent timed out.");
-                        send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                        response = send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                        if(response == -1){
+                            printf("The server has experienced an unexpected crash.\n"); 
+                            pthread_exit(NULL);
+                        } 
                         continue;
-                    }
+                    }*/
 
                     if (strncmp(input, "/accept",7) == 0) {
                         game_session_data *g_data = malloc(sizeof(game_session_data));
@@ -221,8 +314,16 @@ void * player_session(void *pl_data){
                             g_data = NULL;
                             
                             strcpy(message, "Sorry, couldn't start game.");
-                            send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
-                            send(opponent->socket_fd, message, MESSAGE_BUFFER, 0);
+                            response = send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                            if(response == -1){
+                                printf("The server has experienced an unexpected crash.\n"); 
+                                pthread_exit(NULL);
+                            } 
+                            response = send(opponent->socket_fd, message, MESSAGE_BUFFER, 0);
+                            if(response == -1){
+                                printf("The server has experienced an unexpected crash.\n"); 
+                                pthread_exit(NULL);
+                            } 
                         }else{
 
                             printf("Game started successfully.\n");
@@ -233,17 +334,29 @@ void * player_session(void *pl_data){
 
                     }else{
                         strcpy(message, "Opponent didn't accept the invitation.");
-                        send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                        response = send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                        if(response == -1){
+                            printf("The server has experienced an unexpected crash.\n"); 
+                            pthread_exit(NULL);
+                        } 
                     }
 
                 }else{
                     strcpy(message, "Sorry, your opponent is currently in a match.");
-                    send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                    response = send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                    if(response == -1){
+                        printf("The server has experienced an unexpected crash.\n"); 
+                        pthread_exit(NULL);
+                    } 
                 }
 
             }else{
                 strcpy(message, "Could not find opponent.");
-                send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                response = send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                if(response == -1){
+                    printf("The server has experienced an unexpected crash.\n"); 
+                    pthread_exit(NULL);
+                } 
             }
 
         }
@@ -285,12 +398,6 @@ int main(int argc, char**argv) {
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 
     setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse_addr_val, sizeof(reuse_addr_val));
-
-    //Seting a timeout
-    /*struct timeval tv;
-    tv.tv_sec = 15;
-    tv.tv_usec = 0;
-    setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);*/
 
     //Start the server
     bind(socket_fd, (struct sockaddr *) &address, sizeof address);
