@@ -32,7 +32,6 @@ typedef struct game_session_data{
 
 //Global variables
 int connectedPlayers = 0; //Number of connected players
-bool shutDown = false; //If this is true we shut down the server
 player_data* players[PLAYERS_MAX_NUMBER]; //Connected players
 
 //Send/Receive Mutexes
@@ -134,7 +133,7 @@ void * game_session(void *ga_data){
         n = 0;
         while(n!=MESSAGE_BUFFER){
             response = read(current_player->socket_fd, &input[n], MESSAGE_BUFFER-n);
-            if(response==-1){
+            if(response<=0){
                 printf("Game session end due to recv() error.\n"); 
                 break;
             }
@@ -239,7 +238,7 @@ void * player_session(void *pl_data){
         n = 0;
         while(n!=MESSAGE_BUFFER){
             response = read(p_data->socket_fd, &input[n], MESSAGE_BUFFER-n);
-            if(response==-1){
+            if(response<=0){
                 printf("%s disconnected or recv() failed.\n",p_data->username);
                 break;
             }
@@ -275,7 +274,7 @@ void * player_session(void *pl_data){
                     n = 0;
                     while(n!=MESSAGE_BUFFER){
                         response = read(opponent->socket_fd, &input[n], MESSAGE_BUFFER-n);
-                        if(response==-1){
+                        if(response<=0){
                             printf("%s disconnected or recv() failed.\n",opponent->username);
                             strcpy(message, "Your opponent timed out.");
                             response = send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
@@ -404,7 +403,7 @@ int main(int argc, char**argv) {
     printf("Waiting for first connection...\n");
     listen(socket_fd, 20);
 
-    while(!shutDown)
+    while(true)
     {
         if(connectedPlayers<=PLAYERS_MAX_NUMBER){
             
