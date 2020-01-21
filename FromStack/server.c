@@ -56,6 +56,30 @@ player_data* find_player(char *username){
     return NULL;
 }
 
+int safe_read(int socket_fd, char input[MESSAGE_BUFFER]){
+    int response, n = 0;
+    while(n!=MESSAGE_BUFFER){
+        response = read(socket_fd, &input[n], MESSAGE_BUFFER-n);
+        if(response<=0){
+            return -1;
+        }
+        n+=response;
+    }
+    return 0;
+}
+
+int safe_write(int socket_fd, char message[MESSAGE_BUFFER]){
+    int response, n = 0;
+    while(n!=MESSAGE_BUFFER){
+        response = write(socket_fd, &message[n], MESSAGE_BUFFER-n);
+        if(response==-1){
+            return -1;
+        }
+        n+=response;
+    }
+    return 0;
+}
+
 //PLayer session declaration
 void * player_session(void *pl_data);
 
@@ -71,11 +95,11 @@ void * game_session(void *ga_data){
     char input[MESSAGE_BUFFER];
     char message[MESSAGE_BUFFER];
 
-    int response,n;
+    int response;
 
     strcpy(message, "You are now in a match against ");
     strcat(message, p2->username);
-    response = send(p1->socket_fd, message, MESSAGE_BUFFER, 0);
+    response = safe_write(p1->socket_fd, message);
     if(response == -1){
         printf("The server has experienced an unexpected crash.\n"); 
         pthread_exit(NULL);
@@ -83,7 +107,7 @@ void * game_session(void *ga_data){
 
     strcpy(message, "You are now in a match against ");
     strcat(message, p1->username);
-    response = send(p2->socket_fd, message, MESSAGE_BUFFER, 0);
+    response = safe_write(p2->socket_fd, message);
     if(response == -1){
         printf("The server has experienced an unexpected crash.\n"); 
         pthread_exit(NULL);
@@ -93,72 +117,210 @@ void * game_session(void *ga_data){
     pthread_cancel(*p1->thread);
     pthread_cancel(*p2->thread);
 
-    //Initial board arrangement, 2 - white 4 - black,
+    //Initial board arrangement, 2 - white 4 - black, black on start of array, white on end
+    //[row][column]
     int board[8][8] = 
     {
-          {0 , 4 , 0 , 4 , 0 , 4 , 0 , 4},
-          {4 , 0 , 4 , 0 , 4 , 0 , 4 , 0},
-          {0 , 4 , 0 , 4 , 0 , 4 , 0 , 4},
-          {0 , 0 , 0 , 0 , 0 , 0 , 0 , 0},
-          {0 , 0 , 0 , 0 , 0 , 0 , 0 , 0},
-          {2 , 0 , 2 , 0 , 2 , 0 , 2 , 0},
-          {0 , 2 , 0 , 2 , 0 , 2 , 0 , 2},
-          {2 , 0 , 2 , 0 , 2 , 0 , 2 , 0}
+        // 0   1   2   3   4   5   6   7
+          {0 , 4 , 0 , 4 , 0 , 4 , 0 , 4}, //0
+          {4 , 0 , 4 , 0 , 4 , 0 , 4 , 0}, //1
+          {0 , 4 , 0 , 4 , 0 , 4 , 0 , 4}, //2
+          {0 , 0 , 0 , 0 , 0 , 0 , 0 , 0}, //3
+          {0 , 0 , 0 , 0 , 0 , 0 , 0 , 0}, //4
+          {2 , 0 , 2 , 0 , 2 , 0 , 2 , 0}, //5
+          {0 , 2 , 0 , 2 , 0 , 2 , 0 , 2}, //6
+          {2 , 0 , 2 , 0 , 2 , 0 , 2 , 0}  //7
     };
-
-    int current_color;
+    
     bool white = rand() & 1; //So that a random player starts.
+    bool has_another_move;
+
+    int current_player_color;
+    int current_opponent_color;
+    
     player_data *current_player;
     player_data *current_opponent;
-    while(true){
+
+    bool end_game = false;
+
+    char *from;
+    char *to;
+
+    int from_int, to_int;
+    int fx, fy, tx, ty;
+
+    bool invalid_move = false;
+
+    int no_white, no_black;
+
+    while(!end_game){
         
         current_player = (white)?p1:p2;
         current_opponent = (white)?p2:p1;
-        int current_color = (white)?2:4;
+        
+        current_player_color = (white)?2:4;
+        current_opponent_color = (white)?4:2;
 
-        strcpy(message, "Your turn.");
-        response = send(current_player->socket_fd, message, MESSAGE_BUFFER, 0);
-        if(response == -1){
-            printf("The server has experienced an unexpected crash.\n"); 
-            pthread_exit(NULL);
-        }     
-
-        strcpy(message, "Opponent's turn.");
-        response = send(current_opponent->socket_fd, message, MESSAGE_BUFFER, 0);  
-        if(response == -1){
-            printf("The server has experienced an unexpected crash.\n"); 
-            pthread_exit(NULL);
-        }     
-
-        n = 0;
-        while(n!=MESSAGE_BUFFER){
-            response = read(current_player->socket_fd, &input[n], MESSAGE_BUFFER-n);
-            if(response<=0){
-                printf("Game session end due to recv() error.\n"); 
-                break;
-            }
-            n+=response;
-        }
-
-        //Quitting handling
-        if(strncmp(input, "/end", 4) == 0) {
-            printf("Ending game.\n");
-            break;
-        }
-
-        //Finding if the player has any available captures that he has to make
+        //Check if game is over
+        no_white = 0;
+        no_black = 0;
         for(int i = 0; i < 8; i++){
             for(int j = 0; j < 8; j++){
-                if(board[i][j]==current_color){
-
+                if(board[i][j]==2){
+                    no_white++;
+                }else if(board[i][j]==4){
+                    no_black++;
                 }
             }
         }
-
-        //Move handling
-        if(strncmp(input, "/move", 5) == 0) {
-            
+        if(no_white==0){
+            if(white){
+                strcpy(message,"YOU LOST, game has ended.");
+                safe_write(current_player->socket_fd,message); //We don't check for errors here since we break anyway
+                break;
+            }else{
+                strcpy(message,"YOU WON, game has ended.");
+                safe_write(current_opponent->socket_fd,message);
+                break;
+            }
+        }else if(no_black==0){
+           if(!white){
+                strcpy(message,"YOU LOST, game has ended.");
+                safe_write(current_player->socket_fd,message);
+                break;
+            }else{
+                strcpy(message,"YOU WON, game has ended.");
+                safe_write(current_opponent->socket_fd,message);
+                break;
+            }
         }
+
+        strcpy(message, "Your turn.");
+        response = safe_write(current_player->socket_fd, message);
+        if(response == -1){
+            printf("The server has experienced an unexpected crash.\n"); 
+            break;
+        }     
+
+        strcpy(message, "Opponent's turn.");
+        response = safe_write(current_opponent->socket_fd, message);  
+        if(response == -1){
+            printf("The server has experienced an unexpected crash.\n"); 
+            break;
+        }     
+
+        do{
+
+            response = safe_read(current_player->socket_fd,input);
+            if(response==-1){
+                printf("Game session ended due to recv() error.\n");
+                end_game = true; 
+                break;
+            }
+             
+            //Quitting handling
+            if(strncmp(input, "/end", 4) == 0) {
+                printf("Ending game.\n");
+                end_game = true; 
+                break;
+            }
+
+            //Move handling
+            if(strncmp(input, "/move", 5) == 0) {
+                from = after_space(input);
+                to = after_space(from);
+
+                invalid_move = false;
+                if(from!=NULL && to!=NULL){
+                    from_int = atoi(from);
+                    to_int = atoi(to);
+
+                    fx = from_int/10;
+                    fy = from_int%10;
+
+                    tx = to_int/10;
+                    ty = to_int%10;
+
+                    if(fx>=0 && fx<=7 && fy>=0 && fy<=7 && tx>=0 && tx<=7 && ty>=0 && ty<=7){
+                        if(board[fx][fy]==current_player_color){
+                            if(board[tx][ty]==0){
+                                if(abs(tx-fx)==1 && abs(ty-fy)==1){
+                                    board[tx][ty]=current_player_color;
+                                    board[fx][fy]=0;
+                                }else if(abs(tx-fx)==2 && abs(ty-fy)==2){
+                                    if(board[(tx-fx)/2][(ty-fy)/2]==current_opponent_color){
+                                        board[tx][ty]=current_player_color;
+                                        board[fx][fy]=0;
+                                        board[(tx-fx)/2][(ty-fy)/2]=0;
+                                    }else{
+                                        invalid_move = true;
+                                    }
+                                }else{
+                                    invalid_move = true;
+                                }
+                            }else{
+                                invalid_move = true;
+                            }
+                        }else{
+                            invalid_move = true;
+                        }
+                    }else{
+                        invalid_move = true;
+                    }
+                }else{
+                    invalid_move = true;    
+                }
+
+                if(invalid_move){
+                    strcpy(message,"Invalid move command.");
+                    response = safe_write(current_player->socket_fd,message);
+                    if(response == -1){
+                        printf("The server has experienced an unexpected crash.\n"); 
+                        end_game = true;
+                        break;
+                    }  
+                    has_another_move = true;
+                    continue;
+                }
+
+            }
+
+            //Sending the players confirmation of a correct move
+            printf("\n");
+            
+
+            //Finding if the player has any available captures that he has to make
+            has_another_move = false;
+            for(int i = 0; i < 8; i++){
+                for(int j = 0; j < 8; j++){
+                    //Also displaying the board server-side for debug purposes
+
+                    if(board[i][j]==0){
+                        printf("[]");
+                    }else if(board[i][j]==2){
+                        printf("W");
+                    }else if(board[i][j]==4){
+                        printf("B");
+                    }
+
+                    if(board[i][j]==current_player_color){
+                        if(i+1<7 && j+1<7){
+                            if(board[i+1][j+1]==current_opponent_color && board[i+2][j+2]==0){
+                                has_another_move = true;
+                            }
+                        }
+                        if(i-1>0 && j+1>0){
+                            if(board[i-1][j-1]==current_opponent_color && board[i-2][j-2]==0){
+                                has_another_move = true;
+                            }
+                        }
+                    }
+                }
+                //Also displaying the board server-side for debug purposes
+                printf("\n");
+            }
+
+        }while(has_another_move);
 
         white=!white;
 
@@ -183,33 +345,23 @@ void * player_session(void *pl_data){
 
     char input[MESSAGE_BUFFER];
     char message[MESSAGE_BUFFER];
-    int response,n;
+    int response;
 
     if(strcmp(p_data->username,"")==0){ //So that if we restart the session we don't ask for the username again
 
         bool correct_username = false;
         do{
-            //Get the username
-            /*response = recv(p_data->socket_fd, input, MESSAGE_BUFFER, 0);
-            if (response <= 0) {
+
+            response = safe_read(p_data->socket_fd,input);
+            if(response==-1){
                 printf("Unnamed player disconnected or recv() failed.\n");
                 pthread_exit(NULL);
-            }*/
-            n = 0;
-            while(n!=MESSAGE_BUFFER){
-                response = read(p_data->socket_fd, &input[n], MESSAGE_BUFFER-n);
-                if(response==-1){
-                    printf("Unnamed player disconnected or recv() failed.\n");
-                    pthread_exit(NULL);
-                }
-                n+=response;
-                //printf("%d %d %c\n",MESSAGE_BUFFER,n,input[strlen(input)-1]);
             }
 
             correct_username = (find_player(input)==NULL);
             if(!correct_username){
                 strcpy(message,"Sorry, that username is taken: try a different one");
-                response = send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                response = safe_write(p_data->socket_fd, message);
                 if(response == -1){
                     printf("The server has experienced an unexpected crash.\n"); 
                     pthread_exit(NULL);
@@ -230,21 +382,12 @@ void * player_session(void *pl_data){
     char *opponent_name;
     while(true){
 
-        /*response = recv(p_data->socket_fd, input, MESSAGE_BUFFER, 0);
-        if (response <= 0) {
+        response = safe_read(p_data->socket_fd,input);
+        if(response==-1){
             printf("%s disconnected or recv() failed.\n",p_data->username);
             break;
-        }*/
-        n = 0;
-        while(n!=MESSAGE_BUFFER){
-            response = read(p_data->socket_fd, &input[n], MESSAGE_BUFFER-n);
-            if(response<=0){
-                printf("%s disconnected or recv() failed.\n",p_data->username);
-                break;
-            }
-            n+=response;
         }
-
+           
         //Commands handling
         if (strncmp(input, "/quit", 5) == 0) {
             printf("Closing connection with %s\n",p_data->username);
@@ -265,38 +408,25 @@ void * player_session(void *pl_data){
                     strcat(message, p_data->username);
                     strcat(message, " wants to play. Type /accept to accept or anything else to reject.");
 
-                    response = send(opponent->socket_fd, message, MESSAGE_BUFFER, 0);
+                    response = safe_write(opponent->socket_fd, message);
                     if(response == -1){
                         printf("The server has experienced an unexpected crash.\n"); 
                         pthread_exit(NULL);
                     } 
                     
-                    n = 0;
-                    while(n!=MESSAGE_BUFFER){
-                        response = read(opponent->socket_fd, &input[n], MESSAGE_BUFFER-n);
-                        if(response<=0){
-                            printf("%s disconnected or recv() failed.\n",opponent->username);
-                            strcpy(message, "Your opponent timed out.");
-                            response = send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
-                            if(response == -1){
-                                printf("The server has experienced an unexpected crash.\n"); 
-                                pthread_exit(NULL);
-                            } 
-                            continue;
-                        }
-                        n+=response;
-                    }
-                    /*response = recvfrom(opponent->socket_fd, input, MESSAGE_BUFFER, 0, NULL, NULL);
-                    if (response <= 0) {
+                    response = safe_read(opponent->socket_fd, input);
+                    if(response==-1){
                         printf("%s disconnected or recv() failed.\n",opponent->username);
+                        
                         strcpy(message, "Your opponent timed out.");
-                        response = send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
-                        if(response == -1){
+                        
+                        response = safe_write(p_data->socket_fd, message);
+                        if(response==-1){
                             printf("The server has experienced an unexpected crash.\n"); 
                             pthread_exit(NULL);
                         } 
                         continue;
-                    }*/
+                    }
 
                     if (strncmp(input, "/accept",7) == 0) {
                         game_session_data *g_data = malloc(sizeof(game_session_data));
@@ -313,12 +443,12 @@ void * player_session(void *pl_data){
                             g_data = NULL;
                             
                             strcpy(message, "Sorry, couldn't start game.");
-                            response = send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                            response = safe_write(p_data->socket_fd, message);
                             if(response == -1){
                                 printf("The server has experienced an unexpected crash.\n"); 
                                 pthread_exit(NULL);
                             } 
-                            response = send(opponent->socket_fd, message, MESSAGE_BUFFER, 0);
+                            response = safe_write(opponent->socket_fd, message);
                             if(response == -1){
                                 printf("The server has experienced an unexpected crash.\n"); 
                                 pthread_exit(NULL);
@@ -333,7 +463,7 @@ void * player_session(void *pl_data){
 
                     }else{
                         strcpy(message, "Opponent didn't accept the invitation.");
-                        response = send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                        response = safe_write(p_data->socket_fd, message);
                         if(response == -1){
                             printf("The server has experienced an unexpected crash.\n"); 
                             pthread_exit(NULL);
@@ -342,7 +472,7 @@ void * player_session(void *pl_data){
 
                 }else{
                     strcpy(message, "Sorry, your opponent is currently in a match.");
-                    response = send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                    response = safe_write(p_data->socket_fd, message);
                     if(response == -1){
                         printf("The server has experienced an unexpected crash.\n"); 
                         pthread_exit(NULL);
@@ -351,7 +481,7 @@ void * player_session(void *pl_data){
 
             }else{
                 strcpy(message, "Could not find opponent.");
-                response = send(p_data->socket_fd, message, MESSAGE_BUFFER, 0);
+                response = safe_write(p_data->socket_fd, message);
                 if(response == -1){
                     printf("The server has experienced an unexpected crash.\n"); 
                     pthread_exit(NULL);

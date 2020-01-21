@@ -32,12 +32,6 @@ void sending(void * data){
 
   while (fgets(message, MESSAGE_BUFFER, stdin) != NULL) {
     message[strlen(message) - 1] = 0; // Remove newline char from end of string
-    
-    /*response = send(t_data->socket_fd, message, MESSAGE_BUFFER, 0);
-    if(response == -1){
-      printf("Sending error.\n");
-      break;
-    }*/
 
     n = 0;
     while(n!=MESSAGE_BUFFER){
@@ -73,7 +67,7 @@ void * receiving(void * data){
     n = 0;
     while(n!=MESSAGE_BUFFER){
       response = read(t_data->socket_fd, &message[n], MESSAGE_BUFFER-n);
-      if(response==-1){
+      if(response<=0){
         printf("Disconnected from server.\n");
         break;
       }
@@ -86,53 +80,6 @@ void * receiving(void * data){
   free(data);
   pthread_exit(NULL); 
 }
-
-// Get message from stdin and send to server
-/*void * send_message(char prompt[USERNAME_BUFFER+4], int socket_fd, struct sockaddr_in *address) {
-  printf("%s", prompt);
-  char message[MESSAGE_BUFFER];
-  char final_message[MESSAGE_BUFFER+USERNAME_BUFFER+1];
-
-  //Send the desired opponent's name
-  send(socket_fd, , strlen(final_message)+1, 0);
-
-  while (fgets(message, MESSAGE_BUFFER, stdin) != NULL) {
-      memset(final_message,0,strlen(final_message)); // Clear final message buffer
-      strcat(final_message, prompt);
-      strcat(final_message, message);
-      printf("\n%s", prompt);
-      if (strncmp(message, "/quit", 5) == 0) {
-        printf("Closing connection...\n");
-        exit(0);
-      }
-      send(socket_fd, final_message, strlen(final_message)+1, 0);
-  }
-}
-
-void * receive(void * threadData) {
-    int socket_fd, response;
-    char message[MESSAGE_BUFFER];
-    thread_data* pData = (thread_data*)threadData;
-    socket_fd = pData->socket;
-    char* prompt = pData->prompt;
-    memset(message, 0, MESSAGE_BUFFER); // Clear message buffer
-
-    // Print received message
-    while(1) {
-        response = recvfrom(socket_fd, message, MESSAGE_BUFFER, 0, NULL, NULL);
-        if (response == -1) {
-          fprintf(stderr, "recv() failed: %s\n", strerror(errno));
-          break;
-        } else if (response == 0) {
-            printf("\nPeer disconnected\n");
-            break;
-        } else {
-            printf("\nServer> %s", message);
-            printf("%s", prompt);
-            fflush(stdout); // Make sure "User>" gets printed
-        }
-    }
-}*/
 
 int main(int argc, char**argv) {
     
