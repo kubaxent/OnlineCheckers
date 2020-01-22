@@ -31,7 +31,7 @@ typedef struct game_session_data{
 
 
 //Global variables
-int connectedPlayers = 0; //Number of connected players
+int connected_players = 0; //Number of connected players
 player_data* players[PLAYERS_MAX_NUMBER]; //Connected players
 
 //Send/Receive Mutexes
@@ -131,7 +131,8 @@ void * game_session(void *ga_data){
           {0 , 2 , 0 , 2 , 0 , 2 , 0 , 2}, //6
           {2 , 0 , 2 , 0 , 2 , 0 , 2 , 0}  //7
     };
-    
+
+    srand();
     bool white = rand() & 1; //So that a random player starts.
     bool has_another_move;
 
@@ -175,34 +176,34 @@ void * game_session(void *ga_data){
         }
         if(no_white==0){
             if(white){
-                strcpy(message,"YOU LOST, game has ended.");
+                strcpy(message,"/yl"); //"You lost"
                 safe_write(current_player->socket_fd,message); //We don't check for errors here since we break anyway
                 break;
             }else{
-                strcpy(message,"YOU WON, game has ended.");
+                strcpy(message,"/yw"); //"You won"
                 safe_write(current_opponent->socket_fd,message);
                 break;
             }
         }else if(no_black==0){
            if(!white){
-                strcpy(message,"YOU LOST, game has ended.");
+                strcpy(message,"/yl"); //"You lost"
                 safe_write(current_player->socket_fd,message);
                 break;
             }else{
-                strcpy(message,"YOU WON, game has ended.");
+                strcpy(message,"/yw"); //"You won"
                 safe_write(current_opponent->socket_fd,message);
                 break;
             }
         }
 
-        strcpy(message, "Your turn.");
+        strcpy(message, "/yt"); //"Your turn"
         response = safe_write(current_player->socket_fd, message);
         if(response == -1){
             printf("The server has experienced an unexpected crash.\n"); 
             break;
         }     
 
-        strcpy(message, "Opponent's turn.");
+        strcpy(message, "/ot"); //"Opponent's turn"
         response = safe_write(current_opponent->socket_fd, message);  
         if(response == -1){
             printf("The server has experienced an unexpected crash.\n"); 
@@ -244,14 +245,18 @@ void * game_session(void *ga_data){
                     if(fx>=0 && fx<=7 && fy>=0 && fy<=7 && tx>=0 && tx<=7 && ty>=0 && ty<=7){
                         if(board[fx][fy]==current_player_color){
                             if(board[tx][ty]==0){
-                                if(abs(tx-fx)==1 && abs(ty-fy)==1){
-                                    board[tx][ty]=current_player_color;
-                                    board[fx][fy]=0;
-                                }else if(abs(tx-fx)==2 && abs(ty-fy)==2){
-                                    if(board[(tx-fx)/2][(ty-fy)/2]==current_opponent_color){
+                                if(((white)?(tx-fx):(-(tx-fx)))<0){
+                                    if(abs(tx-fx)==1 && abs(ty-fy)==1){
                                         board[tx][ty]=current_player_color;
                                         board[fx][fy]=0;
-                                        board[(tx-fx)/2][(ty-fy)/2]=0;
+                                    }else if(abs(tx-fx)==2 && abs(ty-fy)==2){
+                                        if(board[(tx+fx)/2][(ty+fy)/2]==current_opponent_color){
+                                            board[tx][ty]=current_player_color;
+                                            board[fx][fy]=0;
+                                            board[(tx+fx)/2][(ty+fy)/2]=0;
+                                        }else{
+                                            invalid_move = true;
+                                        }
                                     }else{
                                         invalid_move = true;
                                     }
@@ -286,23 +291,18 @@ void * game_session(void *ga_data){
             }
 
             //Sending the players confirmation of a correct move
-            printf("\n");
+            strcpy(message,"/ma"); //"Move accepted"
+            response = safe_write(current_player->socket_fd,message);
+            if(response==-1){
+                printf("The server has experienced an unexpected crash.\n"); 
+                end_game = true;
+                break;
+            }
             
-
             //Finding if the player has any available captures that he has to make
             has_another_move = false;
             for(int i = 0; i < 8; i++){
                 for(int j = 0; j < 8; j++){
-                    //Also displaying the board server-side for debug purposes
-
-                    if(board[i][j]==0){
-                        printf("[]");
-                    }else if(board[i][j]==2){
-                        printf("W");
-                    }else if(board[i][j]==4){
-                        printf("B");
-                    }
-
                     if(board[i][j]==current_player_color){
                         if(i+1<7 && j+1<7){
                             if(board[i+1][j+1]==current_opponent_color && board[i+2][j+2]==0){
@@ -316,8 +316,16 @@ void * game_session(void *ga_data){
                         }
                     }
                 }
-                //Also displaying the board server-side for debug purposes
-                printf("\n");
+            }
+
+            if(has_another_move){
+                strcpy(message,"/am"); //"Additonal move"
+                response = safe_write(current_player->socket_fd,message);
+                if(response==-1){
+                    printf("The server has experienced an unexpected crash.\n"); 
+                    end_game = true;
+                    break;
+                }
             }
 
         }while(has_another_move);
@@ -396,11 +404,9 @@ void * player_session(void *pl_data){
         if (strncmp(input, "/playagainst ",13) == 0) {
             opponent_name = after_space(input);
             
-            printf("Selected opponent: %s\n", opponent_name);
             player_data *opponent = find_player(opponent_name);
             
             if(opponent!=NULL){
-                printf("Opponent found.\n");
 
                 if(!opponent->in_match){
 
@@ -494,7 +500,7 @@ void * player_session(void *pl_data){
 
     printf("Shutting player %s session down.\n",p_data->username);
     
-    connectedPlayers--;
+    connected_players--;
     free(p_data);
     players[index]=NULL; //Apparently good practice
     pthread_exit(NULL); 
@@ -535,7 +541,7 @@ int main(int argc, char**argv) {
 
     while(true)
     {
-        if(connectedPlayers<=PLAYERS_MAX_NUMBER){
+        if(connected_players<=PLAYERS_MAX_NUMBER){
             
             // Accept connection
             new_socket_fd = accept(socket_fd, NULL, NULL);
@@ -565,7 +571,7 @@ int main(int argc, char**argv) {
                 continue;
             }
             
-            connectedPlayers++;
+            connected_players++;
 
         }
 
