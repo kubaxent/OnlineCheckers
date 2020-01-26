@@ -15,7 +15,7 @@
 #include <errno.h>
 
 #define MESSAGE_BUFFER 500
-#define USERNAME_SIZE 10
+#define USERNAME_SIZE 16
 
 typedef struct thread_data{
   int socket_fd;

@@ -169,7 +169,9 @@ public:
     QLineEdit *opponentName;
     QLabel *label_3;
     QPushButton *playagainst;
-    QListView *listView;
+    QListView *logList;
+    QLineEdit *userName;
+    QLabel *label_4;
     QMenuBar *menuBar;
     QMenu *menuCheckers;
     QToolBar *mainToolBar;
@@ -1120,7 +1122,7 @@ public:
         serverPort->setGeometry(QRect(730, 30, 91, 25));
         connect = new QPushButton(centralWidget);
         connect->setObjectName(QStringLiteral("connect"));
-        connect->setGeometry(QRect(580, 60, 89, 25));
+        connect->setGeometry(QRect(730, 80, 91, 25));
         label = new QLabel(centralWidget);
         label->setObjectName(QStringLiteral("label"));
         label->setGeometry(QRect(580, 10, 67, 17));
@@ -1129,16 +1131,22 @@ public:
         label_2->setGeometry(QRect(730, 10, 67, 17));
         opponentName = new QLineEdit(centralWidget);
         opponentName->setObjectName(QStringLiteral("opponentName"));
-        opponentName->setGeometry(QRect(580, 120, 141, 25));
+        opponentName->setGeometry(QRect(580, 150, 141, 25));
         label_3 = new QLabel(centralWidget);
         label_3->setObjectName(QStringLiteral("label_3"));
-        label_3->setGeometry(QRect(580, 100, 91, 17));
+        label_3->setGeometry(QRect(580, 130, 91, 17));
         playagainst = new QPushButton(centralWidget);
         playagainst->setObjectName(QStringLiteral("playagainst"));
-        playagainst->setGeometry(QRect(580, 150, 89, 25));
-        listView = new QListView(centralWidget);
-        listView->setObjectName(QStringLiteral("listView"));
-        listView->setGeometry(QRect(580, 200, 241, 371));
+        playagainst->setGeometry(QRect(730, 150, 81, 25));
+        logList = new QListView(centralWidget);
+        logList->setObjectName(QStringLiteral("logList"));
+        logList->setGeometry(QRect(580, 190, 241, 381));
+        userName = new QLineEdit(centralWidget);
+        userName->setObjectName(QStringLiteral("userName"));
+        userName->setGeometry(QRect(580, 80, 141, 25));
+        label_4 = new QLabel(centralWidget);
+        label_4->setObjectName(QStringLiteral("label_4"));
+        label_4->setGeometry(QRect(580, 60, 91, 17));
         MainWindow->setCentralWidget(centralWidget);
         menuBar = new QMenuBar(MainWindow);
         menuBar->setObjectName(QStringLiteral("menuBar"));
@@ -1361,6 +1369,7 @@ public:
         label_2->setText(QApplication::translate("MainWindow", "Port", Q_NULLPTR));
         label_3->setText(QApplication::translate("MainWindow", "Opponent", Q_NULLPTR));
         playagainst->setText(QApplication::translate("MainWindow", "Play against", Q_NULLPTR));
+        label_4->setText(QApplication::translate("MainWindow", "Username", Q_NULLPTR));
         menuCheckers->setTitle(QApplication::translate("MainWindow", "Checkers", Q_NULLPTR));
     } // retranslateUi
 

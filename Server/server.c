@@ -11,7 +11,6 @@
 
 #define MESSAGE_BUFFER 500
 #define USERNAME_SIZE 16
-#define CLIENT_ADDRESS_LENGTH 100
 #define PLAYERS_MAX_NUMBER 32
 
 //Player data struct
@@ -97,21 +96,24 @@ void * game_session(void *ga_data){
 
     int response;
 
-    strcpy(message, "You are now in a match against ");
-    strcat(message, p2->username);
+    sleep(1);
+
+    strcpy(message, "/gs"); //"Game started"
+    //strcat(message, p2->username);
     response = safe_write(p1->socket_fd, message);
     if(response == -1){
         printf("The server has experienced an unexpected crash.\n"); 
         pthread_exit(NULL);
     }     
 
-    strcpy(message, "You are now in a match against ");
-    strcat(message, p1->username);
+    strcpy(message, "/gs"); //"Game started"
     response = safe_write(p2->socket_fd, message);
     if(response == -1){
         printf("The server has experienced an unexpected crash.\n"); 
         pthread_exit(NULL);
-    }     
+    }
+
+    sleep(1);     
 
     //Stop the players' sessions
     pthread_cancel(*p1->thread);
@@ -132,7 +134,7 @@ void * game_session(void *ga_data){
           {2 , 0 , 2 , 0 , 2 , 0 , 2 , 0}  //7
     };
 
-    srand();
+    srand(time(0));
     bool white = rand() & 1; //So that a random player starts.
     bool has_another_move;
 
@@ -153,6 +155,26 @@ void * game_session(void *ga_data){
     bool invalid_move = false;
 
     int no_white, no_black;
+
+    int killed = -1;
+
+    //Sending players their colors
+    current_player = (white)?p1:p2;
+    current_opponent = (white)?p2:p1;
+
+    strcpy(message, "/wh"); //"Game started"
+    response = safe_write(current_player->socket_fd, message);
+    if(response == -1){
+        printf("The server has experienced an unexpected crash.\n"); 
+        pthread_exit(NULL);
+    }     
+
+    strcpy(message, "/bl"); //"Game started"
+    response = safe_write(current_opponent->socket_fd, message);
+    if(response == -1){
+        printf("The server has experienced an unexpected crash.\n"); 
+        pthread_exit(NULL);
+    }
 
     while(!end_game){
         
@@ -212,6 +234,8 @@ void * game_session(void *ga_data){
 
         do{
 
+            killed = -1;
+
             response = safe_read(current_player->socket_fd,input);
             if(response==-1){
                 printf("Game session ended due to recv() error.\n");
@@ -254,6 +278,7 @@ void * game_session(void *ga_data){
                                             board[tx][ty]=current_player_color;
                                             board[fx][fy]=0;
                                             board[(tx+fx)/2][(ty+fy)/2]=0;
+                                            killed = ((tx+fx)/2)*10+((ty+fy)/2);
                                         }else{
                                             invalid_move = true;
                                         }
@@ -292,7 +317,32 @@ void * game_session(void *ga_data){
 
             //Sending the players confirmation of a correct move
             strcpy(message,"/ma"); //"Move accepted"
+            if(killed!=-1){ //If we killed someone we send their coordinates so that the client can update his board
+                strcat(message," ");
+                char buffer[2];
+                snprintf(buffer, 2, "%d", killed);
+                strcat(message,buffer);
+            }
+
             response = safe_write(current_player->socket_fd,message);
+            if(response==-1){
+                printf("The server has experienced an unexpected crash.\n"); 
+                end_game = true;
+                break;
+            }
+
+            //To the opponent
+            response = safe_write(current_opponent->socket_fd,message);
+            if(response==-1){
+                printf("The server has experienced an unexpected crash.\n"); 
+                end_game = true;
+                break;
+            }
+
+            strcpy(message,"/move ");
+            strcat(message, from);
+            strcat(message,to);
+            response = safe_write(current_opponent->socket_fd,message);
             if(response==-1){
                 printf("The server has experienced an unexpected crash.\n"); 
                 end_game = true;
@@ -336,6 +386,20 @@ void * game_session(void *ga_data){
 
     g_data->player1->in_match = false;
     g_data->player2->in_match = false;
+
+    strcpy(message, "/ge"); //"Game ended"
+    response = safe_write(p1->socket_fd, message);
+    if(response == -1){
+        printf("The server has experienced an unexpected crash.\n"); 
+        pthread_exit(NULL);
+    }     
+
+    strcpy(message, "/ge"); //"Game ended"
+    response = safe_write(p2->socket_fd, message);
+    if(response == -1){
+        printf("The server has experienced an unexpected crash.\n"); 
+        pthread_exit(NULL);
+    }     
 
     //Restart player sessions
     pthread_create(p1->thread, NULL, player_session, (void *)p1);
@@ -410,9 +474,8 @@ void * player_session(void *pl_data){
 
                 if(!opponent->in_match){
 
-                    strcpy(message, "Player ");
+                    strcpy(message, "/wtp ");
                     strcat(message, p_data->username);
-                    strcat(message, " wants to play. Type /accept to accept or anything else to reject.");
 
                     response = safe_write(opponent->socket_fd, message);
                     if(response == -1){

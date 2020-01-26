@@ -2895,9 +2895,9 @@
    <widget class="QPushButton" name="connect">
     <property name="geometry">
      <rect>
-      <x>580</x>
-      <y>60</y>
-      <width>89</width>
+      <x>730</x>
+      <y>80</y>
+      <width>91</width>
       <height>25</height>
      </rect>
     </property>
@@ -2935,7 +2935,7 @@
     <property name="geometry">
      <rect>
       <x>580</x>
-      <y>120</y>
+      <y>150</y>
       <width>141</width>
       <height>25</height>
      </rect>
@@ -2945,7 +2945,7 @@
     <property name="geometry">
      <rect>
       <x>580</x>
-      <y>100</y>
+      <y>130</y>
       <width>91</width>
       <height>17</height>
      </rect>
@@ -2957,9 +2957,9 @@
    <widget class="QPushButton" name="playagainst">
     <property name="geometry">
      <rect>
-      <x>580</x>
+      <x>730</x>
       <y>150</y>
-      <width>89</width>
+      <width>81</width>
       <height>25</height>
      </rect>
     </property>
@@ -2967,14 +2967,37 @@
      <string>Play against</string>
     </property>
    </widget>
-   <widget class="QListView" name="listView">
+   <widget class="QListView" name="logList">
     <property name="geometry">
      <rect>
       <x>580</x>
-      <y>200</y>
+      <y>190</y>
       <width>241</width>
-      <height>371</height>
+      <height>381</height>
      </rect>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="userName">
+    <property name="geometry">
+     <rect>
+      <x>580</x>
+      <y>80</y>
+      <width>141</width>
+      <height>25</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_4">
+    <property name="geometry">
+     <rect>
+      <x>580</x>
+      <y>60</y>
+      <width>91</width>
+      <height>17</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Username</string>
     </property>
    </widget>
   </widget>
