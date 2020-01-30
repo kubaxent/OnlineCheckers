@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QtNetwork>
+#include <QDataStream>
 
 namespace Ui {
 class MainWindow;
@@ -22,14 +23,14 @@ public slots:
 private slots:
     void on_connect_clicked();
     void readData();
-    //void displayError(QAbstractSocket::SocketError socketError);
-
     void on_playagainst_clicked();
 
 private:
     QTcpSocket *tcpSocket;
     Ui::MainWindow *ui;
     QString prev;
+    bool turn;
+    QDataStream in;
     QString color;
     QList<QString> log;
     bool inGame;

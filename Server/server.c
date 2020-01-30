@@ -96,7 +96,7 @@ void * game_session(void *ga_data){
 
     int response;
 
-    sleep(1);
+    //sleep(1);
 
     strcpy(message, "/gs"); //"Game started"
     //strcat(message, p2->username);
@@ -113,7 +113,7 @@ void * game_session(void *ga_data){
         pthread_exit(NULL);
     }
 
-    sleep(1);     
+    //sleep(1);     
 
     //Stop the players' sessions
     pthread_cancel(*p1->thread);
@@ -176,6 +176,8 @@ void * game_session(void *ga_data){
         pthread_exit(NULL);
     }
 
+    //sleep(1);
+
     while(!end_game){
         
         current_player = (white)?p1:p2;
@@ -217,6 +219,8 @@ void * game_session(void *ga_data){
                 break;
             }
         }
+
+        //sleep(1);
 
         strcpy(message, "/yt"); //"Your turn"
         response = safe_write(current_player->socket_fd, message);
@@ -279,6 +283,7 @@ void * game_session(void *ga_data){
                                             board[fx][fy]=0;
                                             board[(tx+fx)/2][(ty+fy)/2]=0;
                                             killed = ((tx+fx)/2)*10+((ty+fy)/2);
+                                            printf("%d\n", killed);
                                         }else{
                                             invalid_move = true;
                                         }
@@ -315,13 +320,18 @@ void * game_session(void *ga_data){
 
             }
 
+            //sleep(1);
+
             //Sending the players confirmation of a correct move
-            strcpy(message,"/ma"); //"Move accepted"
+            strcpy(message,input);
+            strcat(message,(white)?" wh":" bl");
+
             if(killed!=-1){ //If we killed someone we send their coordinates so that the client can update his board
+                char buffer[3];
+                snprintf(buffer, 3, "%d", killed);
                 strcat(message," ");
-                char buffer[2];
-                snprintf(buffer, 2, "%d", killed);
                 strcat(message,buffer);
+                printf("%s\n", message);
             }
 
             response = safe_write(current_player->socket_fd,message);
@@ -331,7 +341,6 @@ void * game_session(void *ga_data){
                 break;
             }
 
-            //To the opponent
             response = safe_write(current_opponent->socket_fd,message);
             if(response==-1){
                 printf("The server has experienced an unexpected crash.\n"); 
@@ -339,15 +348,16 @@ void * game_session(void *ga_data){
                 break;
             }
 
-            strcpy(message,"/move ");
+            /*strcpy(message,"/move ");
             strcat(message, from);
+            strcat(message," ");
             strcat(message,to);
             response = safe_write(current_opponent->socket_fd,message);
             if(response==-1){
                 printf("The server has experienced an unexpected crash.\n"); 
                 end_game = true;
                 break;
-            }
+            }*/
             
             //Finding if the player has any available captures that he has to make
             has_another_move = false;
@@ -466,6 +476,7 @@ void * player_session(void *pl_data){
             break;
         }
         if (strncmp(input, "/playagainst ",13) == 0) {
+
             opponent_name = after_space(input);
             
             player_data *opponent = find_player(opponent_name);

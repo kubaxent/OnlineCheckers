@@ -2,6 +2,7 @@
 #include "ui_mainwindow.h"
 #include <QMessageBox>
 #include <QObject>
+#include <QDataStream>
 
 #define MESSAGE_BUFFER 500
 
@@ -14,15 +15,23 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     connect(tcpSocket, &QIODevice::readyRead, this, &MainWindow::readData);
     ui->setupUi(this);
-    //typedef void (QAbstractSocket::*QAbstractSocketErrorSignal)(QAbstractSocket::SocketError);
+    in.setDevice(tcpSocket);
+    in.setVersion(QDataStream::Qt_4_0);
     model = new QStringListModel();
     resetBoard();
 }
 
+
 void MainWindow::readData(){
-    QByteArray text = tcpSocket->read(MESSAGE_BUFFER);
-    QString text_string = QString(text);
-    //QString DataAsString = QTextCodec::codecForMib(1015)->toUnicode(Data);
+    //QByteArray text = tcpSocket->read(MESSAGE_BUFFER);
+    //QString text_string = QString(text);
+
+    QString text_string;
+
+    do{
+        in.startTransaction();
+        in >> text_string;
+    }while(!in.commitTransaction());
 
     QRegularExpression exp("/wtp");
     QRegularExpressionMatch match = exp.match(text_string);
@@ -72,26 +81,37 @@ void MainWindow::readData(){
         inGame = true;
     }
 
-    QRegularExpression exp3("/ma");
-    QRegularExpressionMatch match3 = exp3.match(text_string);
-    if(match3.hasMatch()){
-        QList<QString> spl = text_string.split(' ');
-        if(spl.count()>1){
-            QString killed = text_string.split(' ')[1];
-            widget(ui->groupBox,((color=="wh")?"bl":"wh")+killed)->setVisible(false);
-        }
-        moveAccepted = true;
+    QRegularExpression t1("/yt");
+    QRegularExpressionMatch t1m = t1.match(text_string);
+    if(t1m.hasMatch()){
+        turn = true;
+    }
+    QRegularExpression t2("/ot");
+    QRegularExpressionMatch t2m = t2.match(text_string);
+    if(t2m.hasMatch()){
+        turn = false;
     }
 
     QRegularExpression exp4("/move");
     QRegularExpressionMatch match4 = exp4.match(text_string);
     if(match4.hasMatch()){
-        QString from = text_string.split(' ')[1].simplified();
-        QString to = text_string.split(' ')[2].simplified();
-        QString opcolor = (color=="wh")?"bl":"wh";
+
+        QList<QString> spl = text_string.split(' ');
+
+        QString movecolor = spl[3].trimmed();
+        QString killedcolor = (movecolor=="wh")?"bl":"wh";
+
+        QString from = spl[1].trimmed();
+        QString to = spl[2].trimmed();
+
+        if(spl.count()>4){
+            QString killed = spl[4].trimmed();
+            widget(ui->groupBox,killedcolor+killed)->setVisible(false);
+        }
+
         if(inGame){
-            widget(ui->groupBox,opcolor+to)->setVisible(true);
-            widget(ui->groupBox,opcolor+from)->setVisible(false);
+            widget(ui->groupBox,movecolor+to)->setVisible(true);
+            widget(ui->groupBox,movecolor+from)->setVisible(false);
         }
     }
 
@@ -116,30 +136,6 @@ QList<QWidget*> MainWindow::widgets(QWidget * parent, QString search){
     QRegularExpression exp(search);
     return parent->findChildren<QWidget*>(exp);
 }
-
-/*int safe_read(int socket_fd, char input[MESSAGE_BUFFER]){
-    int response, n = 0;
-    while(n!=MESSAGE_BUFFER){
-        response = read(socket_fd, &input[n], MESSAGE_BUFFER-n);
-        if(response<=0){
-            return -1;
-        }
-        n+=response;
-    }
-    return 0;
-}
-
-int safe_write(int socket_fd, char message[MESSAGE_BUFFER]){
-    int response, n = 0;
-    while(n!=MESSAGE_BUFFER){
-        response = write(socket_fd, &message[n], MESSAGE_BUFFER-n);
-        if(response==-1){
-            return -1;
-        }
-        n+=response;
-    }
-    return 0;
-}*/
 
 void MainWindow::resetBoard(){
     QList<QWidget*> blacks = widgets(ui->groupBox,"bl");
@@ -174,31 +170,19 @@ void MainWindow::tileClicked(){
         QString move = "/move " + prev + " " + button->objectName().remove(0,1);
         tcpSocket->write(move.toLocal8Bit().data(),MESSAGE_BUFFER);
 
-
-        //while(!moveAccepted){
-            if(inGame && moveAccepted){ //here the accept from the server
-                //QMessageBox::about(this,color,color+(button->objectName().remove(0,1)));
-                widget(ui->groupBox,color+button->objectName().remove(0,1))->setVisible(true);
-                widget(ui->groupBox,color+prev)->setVisible(false);
-
-                moveAccepted = false;
-               // break;
-            }
-        //}
         prev = "";
     }
 }
 
 void MainWindow::on_connect_clicked(){
     tcpSocket->connectToHost(ui->serverName->text(), ui->serverPort->text().toInt());
-    int sent = tcpSocket->write(ui->userName->text().toLocal8Bit().data(),MESSAGE_BUFFER);
-    //QMessageBox::about(this,"Bytes sent:",QString::number(sent));
+    tcpSocket->write(ui->userName->text().toLocal8Bit().data(),MESSAGE_BUFFER);
 }
 
 
 void MainWindow::on_playagainst_clicked(){
     QString text = "/playagainst " + ui->opponentName->text();
-    int sent = tcpSocket->write(text.toLocal8Bit().data(),MESSAGE_BUFFER);
+    tcpSocket->write(text.toLocal8Bit().data(),MESSAGE_BUFFER);
 }
 
 MainWindow::~MainWindow()
