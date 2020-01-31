@@ -21,17 +21,9 @@ MainWindow::MainWindow(QWidget *parent) :
     resetBoard();
 }
 
+void MainWindow::handleCommand(char* text){
 
-void MainWindow::readData(){
-    //QByteArray text = tcpSocket->read(MESSAGE_BUFFER);
-    //QString text_string = QString(text);
-
-    QString text_string;
-
-    do{
-        in.startTransaction();
-        in >> text_string;
-    }while(!in.commitTransaction());
+    QString text_string = QString(text);
 
     QRegularExpression exp("/wtp");
     QRegularExpressionMatch match = exp.match(text_string);
@@ -104,15 +96,17 @@ void MainWindow::readData(){
         QString from = spl[1].trimmed();
         QString to = spl[2].trimmed();
 
-        if(spl.count()>4){
-            QString killed = spl[4].trimmed();
-            widget(ui->groupBox,killedcolor+killed)->setVisible(false);
-        }
-
         if(inGame){
             widget(ui->groupBox,movecolor+to)->setVisible(true);
             widget(ui->groupBox,movecolor+from)->setVisible(false);
+
+            if(spl.count()>4){
+                QString killed = spl[4].trimmed();
+                widget(ui->groupBox,killedcolor+killed)->setVisible(false);
+            }
+
         }
+
     }
 
     QRegularExpression exp5("/ge");
@@ -126,6 +120,25 @@ void MainWindow::readData(){
     log.insert(0,mes);
     model->setStringList(log);
     ui->logList->setModel(model);
+}
+
+
+void MainWindow::readData(){
+
+    char text[MESSAGE_BUFFER];
+    qint64 response = 1;
+    qint64 t = 0;
+    while(response > 0){
+        response = tcpSocket->read(&text[t],MESSAGE_BUFFER-t);
+        t+=response;
+
+        if(t>=MESSAGE_BUFFER){
+            handleCommand(text);
+            t=0;
+        }
+
+    }
+
 }
 
 QWidget* MainWindow::widget(QWidget * parent, QString search){
@@ -167,8 +180,10 @@ void MainWindow::tileClicked(){
         prev = button->objectName().remove(0,1);
     }else{
 
-        QString move = "/move " + prev + " " + button->objectName().remove(0,1);
-        tcpSocket->write(move.toLocal8Bit().data(),MESSAGE_BUFFER);
+        if(turn){
+            QString move = "/move " + prev + " " + button->objectName().remove(0,1);
+            tcpSocket->write(move.toLocal8Bit().data(),MESSAGE_BUFFER);
+        }
 
         prev = "";
     }

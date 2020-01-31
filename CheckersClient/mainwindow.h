@@ -29,6 +29,7 @@ private:
     QTcpSocket *tcpSocket;
     Ui::MainWindow *ui;
     QString prev;
+    void handleCommand(char* text);
     bool turn;
     QDataStream in;
     QString color;

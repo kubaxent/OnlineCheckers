@@ -137,6 +137,7 @@ void * game_session(void *ga_data){
     srand(time(0));
     bool white = rand() & 1; //So that a random player starts.
     bool has_another_move;
+    bool has_capture;
 
     int current_player_color;
     int current_opponent_color;
@@ -239,6 +240,7 @@ void * game_session(void *ga_data){
         do{
 
             killed = -1;
+            has_another_move = false;
 
             response = safe_read(current_player->socket_fd,input);
             if(response==-1){
@@ -274,9 +276,11 @@ void * game_session(void *ga_data){
                         if(board[fx][fy]==current_player_color){
                             if(board[tx][ty]==0){
                                 if(((white)?(tx-fx):(-(tx-fx)))<0){
-                                    if(abs(tx-fx)==1 && abs(ty-fy)==1){
+                                    if(abs(tx-fx)==1 && abs(ty-fy)==1 && !has_capture){
                                         board[tx][ty]=current_player_color;
                                         board[fx][fy]=0;
+                                    }else if(abs(tx-fx)==1 && abs(ty-fy)==1 && has_capture){
+                                        invalid_move = true;
                                     }else if(abs(tx-fx)==2 && abs(ty-fy)==2){
                                         if(board[(tx+fx)/2][(ty+fy)/2]==current_opponent_color){
                                             board[tx][ty]=current_player_color;
@@ -360,32 +364,38 @@ void * game_session(void *ga_data){
             }*/
             
             //Finding if the player has any available captures that he has to make
-            has_another_move = false;
+            has_capture = false;
             for(int i = 0; i < 8; i++){
                 for(int j = 0; j < 8; j++){
                     if(board[i][j]==current_player_color){
-                        if(i+1<7 && j+1<7){
-                            if(board[i+1][j+1]==current_opponent_color && board[i+2][j+2]==0){
-                                has_another_move = true;
+                    
+                        if(current_player_color==2){ //white
+                        
+                            if(i-1>0 && j-1>0 && board[i-1][j-1]==current_opponent_color && board[i-2][j-2]==0){
+                                has_capture = true;
                             }
-                        }
-                        if(i-1>0 && j+1>0){
-                            if(board[i-1][j-1]==current_opponent_color && board[i-2][j-2]==0){
-                                has_another_move = true;
+                            if(i-1>0 && j+1<7 && board[i-1][j+1]==current_opponent_color && board[i-2][j+2]==0){
+                                has_capture = true;
                             }
+                            
                         }
+                        if(current_player_color==4){ //black
+                            
+                            if(i+1<7 && j+1<7 && board[i+1][j+1]==current_opponent_color && board[i+2][j+2]==0){
+                                has_capture = true;
+                            }
+                            if(i+1<7 && j-1>0 && board[i+1][j-1]==current_opponent_color && board[i+2][j-2]==0){
+                                has_capture = true;
+                            }
+                            
+                        } 
+                        
                     }
                 }
             }
 
-            if(has_another_move){
-                strcpy(message,"/am"); //"Additonal move"
-                response = safe_write(current_player->socket_fd,message);
-                if(response==-1){
-                    printf("The server has experienced an unexpected crash.\n"); 
-                    end_game = true;
-                    break;
-                }
+            if(has_capture){
+                has_another_move = true;
             }
 
         }while(has_another_move);
@@ -400,14 +410,16 @@ void * game_session(void *ga_data){
     strcpy(message, "/ge"); //"Game ended"
     response = safe_write(p1->socket_fd, message);
     if(response == -1){
-        printf("The server has experienced an unexpected crash.\n"); 
+        printf("The server has experienced an unexpected crash.\n");
+        free(g_data); 
         pthread_exit(NULL);
     }     
 
     strcpy(message, "/ge"); //"Game ended"
     response = safe_write(p2->socket_fd, message);
     if(response == -1){
-        printf("The server has experienced an unexpected crash.\n"); 
+        printf("The server has experienced an unexpected crash.\n");
+        free(g_data);  
         pthread_exit(NULL);
     }     
 
