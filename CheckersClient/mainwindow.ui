@@ -2743,18 +2743,6 @@
       <string/>
      </property>
     </widget>
-    <zorder>bl61</zorder>
-    <zorder>bl67</zorder>
-    <zorder>bl63</zorder>
-    <zorder>bl74</zorder>
-    <zorder>bl65</zorder>
-    <zorder>bl56</zorder>
-    <zorder>bl76</zorder>
-    <zorder>bl54</zorder>
-    <zorder>bl52</zorder>
-    <zorder>bl70</zorder>
-    <zorder>bl72</zorder>
-    <zorder>bl50</zorder>
     <zorder>b01</zorder>
     <zorder>b00</zorder>
     <zorder>b02</zorder>
@@ -2819,18 +2807,6 @@
     <zorder>b77</zorder>
     <zorder>b74</zorder>
     <zorder>b71</zorder>
-    <zorder>bl01</zorder>
-    <zorder>bl12</zorder>
-    <zorder>bl21</zorder>
-    <zorder>bl10</zorder>
-    <zorder>bl23</zorder>
-    <zorder>bl14</zorder>
-    <zorder>bl03</zorder>
-    <zorder>bl25</zorder>
-    <zorder>bl27</zorder>
-    <zorder>bl16</zorder>
-    <zorder>bl07</zorder>
-    <zorder>bl05</zorder>
     <zorder>wh65</zorder>
     <zorder>wh67</zorder>
     <zorder>wh56</zorder>
@@ -2843,14 +2819,6 @@
     <zorder>wh70</zorder>
     <zorder>wh72</zorder>
     <zorder>wh74</zorder>
-    <zorder>bl32</zorder>
-    <zorder>bl34</zorder>
-    <zorder>bl30</zorder>
-    <zorder>bl36</zorder>
-    <zorder>bl47</zorder>
-    <zorder>bl43</zorder>
-    <zorder>bl45</zorder>
-    <zorder>bl41</zorder>
     <zorder>wh36</zorder>
     <zorder>wh30</zorder>
     <zorder>wh32</zorder>
@@ -2871,6 +2839,38 @@
     <zorder>wh10</zorder>
     <zorder>wh14</zorder>
     <zorder>wh12</zorder>
+    <zorder>bl45</zorder>
+    <zorder>bl21</zorder>
+    <zorder>bl03</zorder>
+    <zorder>bl52</zorder>
+    <zorder>bl47</zorder>
+    <zorder>bl72</zorder>
+    <zorder>bl32</zorder>
+    <zorder>bl74</zorder>
+    <zorder>bl76</zorder>
+    <zorder>bl25</zorder>
+    <zorder>bl16</zorder>
+    <zorder>bl07</zorder>
+    <zorder>bl67</zorder>
+    <zorder>bl14</zorder>
+    <zorder>bl56</zorder>
+    <zorder>bl36</zorder>
+    <zorder>bl61</zorder>
+    <zorder>bl65</zorder>
+    <zorder>bl63</zorder>
+    <zorder>bl34</zorder>
+    <zorder>bl10</zorder>
+    <zorder>bl05</zorder>
+    <zorder>bl70</zorder>
+    <zorder>bl41</zorder>
+    <zorder>bl43</zorder>
+    <zorder>bl54</zorder>
+    <zorder>bl12</zorder>
+    <zorder>bl23</zorder>
+    <zorder>bl01</zorder>
+    <zorder>bl27</zorder>
+    <zorder>bl50</zorder>
+    <zorder>bl30</zorder>
    </widget>
    <widget class="QLineEdit" name="serverName">
     <property name="geometry">

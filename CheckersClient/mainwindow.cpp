@@ -97,6 +97,9 @@ void MainWindow::handleCommand(char* text){
         QString to = spl[2].trimmed();
 
         if(inGame){
+
+            //QMessageBox::about(this, "Changes: ", "To: " +  movecolor+to + "From: " + movecolor+from);
+
             widget(ui->groupBox,movecolor+to)->setVisible(true);
             widget(ui->groupBox,movecolor+from)->setVisible(false);
 
